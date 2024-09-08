@@ -1,5 +1,6 @@
 package plc.project;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -29,7 +30,15 @@ public final class Lexer {
      * whitespace where appropriate.
      */
     public List<Token> lex() {
-        throw new UnsupportedOperationException(); //TODO
+        List<Token> tokens = new ArrayList<>();
+        while (chars.has(0)) {
+            if (peek("\\s")) {
+                chars.advance();  // Skip whitespace
+            } else {
+                tokens.add(lexToken());  // Lex a token
+            }
+        }
+        return tokens;
     }
 
     /**
@@ -41,16 +50,49 @@ public final class Lexer {
      * by {@link #lex()}
      */
     public Token lexToken() {
-        throw new UnsupportedOperationException(); //TODO
+        if (peek("[A-Za-z_]")) {
+            return lexIdentifier();  // If it's a valid start of an identifier, delegate
+        } else if (peek("[0-9]")) {
+            return lexNumber();  // If it's a number, delegate to lexNumber
+        }
+        // Add cases for other tokens (strings, operators, etc.)
+        throw new ParseException("Unexpected character", chars.index);
     }
 
     public Token lexIdentifier() {
-        throw new UnsupportedOperationException(); //TODO
+        if (!peek("[A-Za-z_]")) {  // identifier must start with a letter or underscore
+            throw new ParseException("Invalid start of identifier", chars.index);
+        }
+        while (peek("[A-Za-z0-9_-]")) {
+            chars.advance();  // consume valid identifier characters
+        }
+        return chars.emit(Token.Type.IDENTIFIER);
     }
 
     public Token lexNumber() {
-        throw new UnsupportedOperationException(); //TODO
+        // Start lexing from the current character index
+        boolean isDecimal = false;
+
+        // Lex the integer part
+        while (peek("[0-9]")) {
+            chars.advance();
+        }
+
+        // Check for a decimal point and lex the fractional part if applicable
+        if (match("\\.")) {
+            isDecimal = true;  // Mark this as a decimal number
+            if (!peek("[0-9]")) {
+                throw new ParseException("Invalid decimal number format", chars.index);
+            }
+            while (peek("[0-9]")) {
+                chars.advance();
+            }
+        }
+
+        // Emit the token as either INTEGER or DECIMAL based on the presence of a decimal point
+        return isDecimal ? chars.emit(Token.Type.DECIMAL) : chars.emit(Token.Type.INTEGER);
     }
+
 
     public Token lexCharacter() {
         throw new UnsupportedOperationException(); //TODO
@@ -74,7 +116,12 @@ public final class Lexer {
      * return true if the next characters are {@code 'a', 'b', 'c'}.
      */
     public boolean peek(String... patterns) {
-        throw new UnsupportedOperationException(); //TODO (in lecture)
+        for (String pattern : patterns) {
+            if (chars.has(0) && String.valueOf(chars.get(0)).matches(pattern)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -83,7 +130,11 @@ public final class Lexer {
      * true. Hint - it's easiest to have this method simply call peek.
      */
     public boolean match(String... patterns) {
-        throw new UnsupportedOperationException(); //TODO (in lecture)
+        if (peek(patterns)) {
+            chars.advance();
+            return true;
+        }
+        return false;
     }
 
     /**

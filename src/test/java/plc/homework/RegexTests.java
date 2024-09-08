@@ -201,7 +201,6 @@ public class RegexTests {
                 Arguments.of("String with Escaped Backslash", "\"Escaped\\\\backslash\"", true),
                 Arguments.of("String with Mixed Special Characters", "\"Special\\b\\n\\r\\tchars\"", true),
                 Arguments.of("String with Literal Backslash at End", "\"Ends with \\\\\"", true),
-
                 Arguments.of("String with Multiple Unicode Sequences", "\"Unicode\\u0020and\\u00A9symbols\"", true),
 
                 Arguments.of("Unterminated String", "\"unterminated", false),

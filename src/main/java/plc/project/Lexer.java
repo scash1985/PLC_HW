@@ -32,10 +32,10 @@ public final class Lexer {
     public List<Token> lex() {
         List<Token> tokens = new ArrayList<>();
         while (chars.has(0)) {
-            if (peek("\\s")) {
-                chars.advance();  // Skip whitespace
+            if (peek("\\s")) { //check if next char is whitespace
+                chars.advance();  //skip whitespace
             } else {
-                tokens.add(lexToken());  // Lex a token
+                tokens.add(lexToken());  //call lexToken to identify token
             }
         }
         return tokens;
@@ -51,36 +51,32 @@ public final class Lexer {
      */
     public Token lexToken() {
         if (peek("[A-Za-z_]")) {
-            return lexIdentifier();  // If it's a valid start of an identifier, delegate
+            return lexIdentifier();  //if char is a letter or underscore, identify as identifier
         } else if (peek("[0-9]")) {
-            return lexNumber();  // If it's a number, delegate to lexNumber
+            return lexNumber();  //if char is a number, call lexNumber to identify token
         }
-        // Add cases for other tokens (strings, operators, etc.)
         throw new ParseException("Unexpected character", chars.index);
     }
 
     public Token lexIdentifier() {
-        if (!peek("[A-Za-z_]")) {  // identifier must start with a letter or underscore
+        if (!peek("[A-Za-z_]")) {  //throws exception if char doesn't start with a letter or underscore
             throw new ParseException("Invalid start of identifier", chars.index);
         }
         while (peek("[A-Za-z0-9_-]")) {
-            chars.advance();  // consume valid identifier characters
+            chars.advance();
         }
-        return chars.emit(Token.Type.IDENTIFIER);
+        return chars.emit(Token.Type.IDENTIFIER); //creates token of type IDENTIFIER
     }
 
     public Token lexNumber() {
-        // Start lexing from the current character index
         boolean isDecimal = false;
 
-        // Lex the integer part
         while (peek("[0-9]")) {
             chars.advance();
         }
 
-        // Check for a decimal point and lex the fractional part if applicable
         if (match("\\.")) {
-            isDecimal = true;  // Mark this as a decimal number
+            isDecimal = true;
             if (!peek("[0-9]")) {
                 throw new ParseException("Invalid decimal number format", chars.index);
             }
@@ -89,7 +85,7 @@ public final class Lexer {
             }
         }
 
-        // Emit the token as either INTEGER or DECIMAL based on the presence of a decimal point
+        //creates token of type INTEGER or DECIMAL based on the presence of a decimal point
         return isDecimal ? chars.emit(Token.Type.DECIMAL) : chars.emit(Token.Type.INTEGER);
     }
 

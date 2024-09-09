@@ -57,10 +57,12 @@ public class RegexTests {
                 Arguments.of("Subdomain", "user@subdomain.com", true),
 
                 Arguments.of("Missing Domain Dot", "missingdot@gmailcom", false),
-                Arguments.of("Symbols", "symbols#$%@gmail.com", false),
-                Arguments.of("Missing Dot Before TLD", "missingdot@examplecom", false),
-                Arguments.of("Invalid Character in Local Part", "invalidchar!@example.com", false),
-                Arguments.of("TLD Too Long", "toolongtld@example.comm", false)
+                Arguments.of("Symbols in Local Part", "symbols#$%@gmail.com", false),
+                Arguments.of("Multiple Dots in TLD", "user@example.c..om", false),
+                Arguments.of("Missing @ Symbol", "missingatsymbol.com", false),
+                Arguments.of("Invalid TLD Length", "user@example.co.uk", false),
+                Arguments.of("Spaces in Local Part", "user name@example.com", false),
+                Arguments.of("IP Address in Domain", "user@123.123.123.123", false)
         );
     }
 
@@ -111,6 +113,14 @@ public class RegexTests {
                 Arguments.of("Single Element with Space", "[ 1 ]", true),
                 Arguments.of("Multiple Elements with Spaces", "[1, 2, 3]", true),
                 Arguments.of("Multiple Elements Mixed Spaces", "[1 ,2, 3 ,4]", true),
+                Arguments.of("Empty List with Spaces Inside", "[ ]", true),
+                Arguments.of("Multiple Elements with Inconsistent Spaces", "[  1 , 2 ,   3  ]", true),
+                Arguments.of("Single Element with No Spaces", "[100]", true),
+                Arguments.of("Multiple Elements Large Numbers with Spaces", "[ 100000 ,  200000 ,300000 ]", true),
+                Arguments.of("Empty List", "[]", true),
+                Arguments.of("Multiple Elements with Minimum Spaces", "[1,2,3,4,5,6,7,8,9]", true),
+                Arguments.of("Multiple Elements with Extra Spaces After Comma", "[1 , 2 , 3 , 4]", true),
+                Arguments.of("Single Element with Leading Space", "[ 1]", true),
 
                 Arguments.of("Missing Brackets", "1,2,3", false),
                 Arguments.of("Missing Commas", "[1 2 3]", false),
@@ -120,6 +130,9 @@ public class RegexTests {
                 Arguments.of("Decimal Numbers", "[1.0,2.5,3]", false),
                 Arguments.of("Alphabetic Characters", "[1,a,3]", false),
                 Arguments.of("Special Characters", "[1,*,3]", false),
+                Arguments.of("Extra Brackets", "[[1,2,3]]", false),
+                Arguments.of("Only Brackets", "[]", true),
+                Arguments.of("Only Spaces", "[ , ]", false)
                 Arguments.of("Extra Brackets", "[[1,2,3]]", false)
         );
     }
@@ -141,13 +154,26 @@ public class RegexTests {
                 Arguments.of("Decimal with Leading Zero and Trailing Digits", "0.0001", true),
                 Arguments.of("Leading Zero without Decimal", "000123", true),
                 Arguments.of("Decimal with Multiple Leading Zeros", "000.000", true),
-
+                Arguments.of("Positive Integer with Plus Sign", "+456", true),
+                Arguments.of("Negative Decimal with Multiple Digits", "-0.98765", true),
+                Arguments.of("Positive Decimal with Plus Sign", "+0.345", true),
+          
                 Arguments.of("Trailing Decimal", "1.", false),
                 Arguments.of("Leading Decimal", ".5", false),
                 Arguments.of("Multiple Decimals", "1.2.3", false),
                 Arguments.of("Non-Numeric Characters", "123abc", false),
                 Arguments.of("Empty String", "", false),
                 Arguments.of("Spaces", " 123 ", false),
+                Arguments.of("Sign with Decimal Point but No Digits", "+.1", false),
+                Arguments.of("Multiple Signs", "--123", false),
+                Arguments.of("Letter in Number", "12a34", false),
+                Arguments.of("Decimal Only", ".", false),
+                Arguments.of("Plus Sign Only", "+", false),
+                Arguments.of("Negative Sign Only", "-", false),
+                Arguments.of("Multiple Plus Signs", "++12", false),
+                Arguments.of("Number with Comma", "1,000", false),
+                Arguments.of("Number with Exponent", "1e10", false),
+                Arguments.of("Spaces Between Digits", "1 2 3", false)
                 Arguments.of("Sign with Decimal Point but No Digits", "+.1", false)
         );
     }
@@ -172,6 +198,13 @@ public class RegexTests {
                 Arguments.of("String with Leading and Trailing Spaces", "\"  spaced  \"", true),
                 Arguments.of("String with Unicode Character", "\"Unicode: \\u00A9\"", true),
                 Arguments.of("String with Mixed Escapes", "\"Mix\\t\\n\\u0022Escapes\\u00A9\"", true),
+                Arguments.of("String with Single Quote", "\"It\'s a string\"", true),
+                Arguments.of("String with Vertical Tab", "\"Vertical\\u000BTab\"", true),
+                Arguments.of("String with Unicode Escape Sequence", "\"Unicode escape: \\u0041\"", true),
+                Arguments.of("String with Escaped Backslash", "\"Escaped\\\\backslash\"", true),
+                Arguments.of("String with Mixed Special Characters", "\"Special\\b\\n\\r\\tchars\"", true),
+                Arguments.of("String with Literal Backslash at End", "\"Ends with \\\\\"", true),
+                Arguments.of("String with Multiple Unicode Sequences", "\"Unicode\\u0020and\\u00A9symbols\"", true),
 
                 Arguments.of("Unterminated String", "\"unterminated", false),
                 Arguments.of("Invalid Escape Sequence", "\"invalid\\escape\"", false),
@@ -181,6 +214,11 @@ public class RegexTests {
                 Arguments.of("String with Unescaped Double Quote", "\"unescaped \"double quote\"", false),
                 Arguments.of("String with Invalid Leading Escape", "\"\\invalid\"", false),
                 Arguments.of("String with Trailing Backslash", "\"trailing\\\"", false),
+                Arguments.of("String with Multiple Unescaped Quotes", "\"multiple \"unescaped\" quotes\"", false),
+                Arguments.of("String with Literal Backslash", "\"Unescaped backslash\\\"", false),
+                Arguments.of("String with Trailing Quote Inside", "\"unescaped quote inside\"example\"", false),
+                Arguments.of("String with Invalid Escape Sequence 2", "\"invalid\\gescape\"", false),
+                Arguments.of("Unclosed Escape Sequence", "\"Escape sequence \\\"", false)
                 Arguments.of("String with Multiple Unescaped Quotes", "\"multiple \"unescaped\" quotes\"", false)
         );
     }

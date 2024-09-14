@@ -32,8 +32,9 @@ public final class Lexer {
     public List<Token> lex() {
         List<Token> tokens = new ArrayList<>();
         while (chars.has(0)) {
-            if (peek("\\s")) { //check if next char is whitespace
+            if (peek("[\\s\\u0008]")) { //check if next char is whitespace
                 chars.advance();  //skip whitespace
+                chars.skip();  // reset length back to 0
             } else {
                 tokens.add(lexToken());  //call lexToken to identify token
             }
@@ -51,11 +52,19 @@ public final class Lexer {
      */
     public Token lexToken() {
         if (peek("[A-Za-z_]")) {
-            return lexIdentifier();  //if char is a letter or underscore, identify as identifier
+            return lexIdentifier();  // If char is a letter or underscore, call lexIdentifier
+        } else if (peek("[+-]") && chars.has(1) && String.valueOf(chars.get(1)).matches("[0-9]")) {
+            // Check for a number starting with + or -
+            return lexNumber();
         } else if (peek("[0-9]")) {
-            return lexNumber();  //if char is a number, call lexNumber to identify token
+            return lexNumber();  // If char is a number, call lexNumber
+        } else if (peek("\"")) {
+            return lexString();  // If char is a double quote, call lexString
+        } else if (peek("'")) {
+            return lexCharacter();  // If char is a single quote, call lexCharacter
+        } else {
+            return lexOperator();
         }
-        throw new ParseException("Unexpected character", chars.index);
     }
 
     public Token lexIdentifier() {
@@ -71,6 +80,12 @@ public final class Lexer {
     public Token lexNumber() {
         boolean isDecimal = false;
 
+        // handle optional leading + or -
+        if (peek("[+-]")) {
+            chars.advance();
+        }
+
+        // handle the number part
         while (peek("[0-9]")) {
             chars.advance();
         }
@@ -85,25 +100,88 @@ public final class Lexer {
             }
         }
 
-        //creates token of type INTEGER or DECIMAL based on the presence of a decimal point
+        // emit a DECIMAL or INTEGER token based on whether a decimal point was found
         return isDecimal ? chars.emit(Token.Type.DECIMAL) : chars.emit(Token.Type.INTEGER);
     }
 
-
     public Token lexCharacter() {
-        throw new UnsupportedOperationException(); //TODO
+        // check for opening single quote
+        if (!match("'")) {
+            throw new ParseException("Expected opening single quote for character literal", chars.index);
+        }
+
+        // Handle the character or escape sequence
+        if (peek("\\\\")) {
+            lexEscape(); // handle escape sequences
+        } else if (peek("[^'\n\r]")) {
+            chars.advance();
+        } else {
+            throw new ParseException("Invalid character in character literal", chars.index);
+        }
+
+        // Ensure there is only one character
+        if (chars.has(0) && peek("[^'\\n\\r\\\\]")) {
+            // advance to check if another character is present
+            chars.advance();
+            if (!peek("'")) {
+                throw new ParseException("Character literal contains more than one character", chars.index);
+            }
+        } else if (peek("\\\\")) {
+            // if we saw an escape sequence, check if another character is present
+            if (!peek("'")) {
+                throw new ParseException("Character literal contains more than one character", chars.index);
+            }
+        }
+
+        if (!match("'")) {
+            throw new ParseException("Expected closing single quote for character literal", chars.index);
+        }
+
+        return chars.emit(Token.Type.CHARACTER);
     }
 
     public Token lexString() {
-        throw new UnsupportedOperationException(); //TODO
+        // check for opening double quote
+        if (!match("\"")) {
+            throw new ParseException("Expected opening double quote for string literal", chars.index);
+        }
+
+        // Handle the characters in the string
+        while (peek("[^\"\\n\\r]")) {
+            if (peek("\\\\"))
+                lexEscape();
+            chars.advance();
+        }
+
+        // check for closing double quote
+        if (!match("\"")) {
+            throw new ParseException("Expected closing double quote for string literal", chars.index);
+        }
+
+        return chars.emit(Token.Type.STRING);
     }
 
     public void lexEscape() {
-        throw new UnsupportedOperationException(); //TODO
+        if (match("\\\\")) {
+            if (!peek("[bnrt'\"\\\\]")) {
+                throw new ParseException("Invalid escape sequence", chars.index);
+            }
+            chars.advance();
+        } else {
+            throw new ParseException("Expected escape sequence after backslash", chars.index);
+        }
     }
 
     public Token lexOperator() {
-        throw new UnsupportedOperationException(); //TODO
+        if (peek("<", "=") || peek(">", "=") || peek("!", "=") || peek("=", "=")) {
+            if (match("<", "=") || match(">", "=") || match("!", "=") || match("=", "=")) {
+                return chars.emit(Token.Type.OPERATOR);
+            }
+        } else {
+            chars.advance();
+        }
+
+        return chars.emit(Token.Type.OPERATOR);
     }
 
     /**
@@ -112,12 +190,12 @@ public final class Lexer {
      * return true if the next characters are {@code 'a', 'b', 'c'}.
      */
     public boolean peek(String... patterns) {
-        for (String pattern : patterns) {
-            if (chars.has(0) && String.valueOf(chars.get(0)).matches(pattern)) {
-                return true;
+        for (int i = 0; i < patterns.length; i++) {
+            if (!chars.has(i) || !String.valueOf(chars.get(i)).matches(patterns[i])) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     /**
@@ -127,7 +205,8 @@ public final class Lexer {
      */
     public boolean match(String... patterns) {
         if (peek(patterns)) {
-            chars.advance();
+            for (String pattern : patterns)
+                chars.advance();
             return true;
         }
         return false;

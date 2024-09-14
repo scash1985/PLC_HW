@@ -133,6 +133,7 @@ public class RegexTests {
                 Arguments.of("Extra Brackets", "[[1,2,3]]", false),
                 Arguments.of("Only Brackets", "[]", true),
                 Arguments.of("Only Spaces", "[ , ]", false)
+                Arguments.of("Extra Brackets", "[[1,2,3]]", false)
         );
     }
 
@@ -156,7 +157,7 @@ public class RegexTests {
                 Arguments.of("Positive Integer with Plus Sign", "+456", true),
                 Arguments.of("Negative Decimal with Multiple Digits", "-0.98765", true),
                 Arguments.of("Positive Decimal with Plus Sign", "+0.345", true),
-
+          
                 Arguments.of("Trailing Decimal", "1.", false),
                 Arguments.of("Leading Decimal", ".5", false),
                 Arguments.of("Multiple Decimals", "1.2.3", false),
@@ -173,8 +174,10 @@ public class RegexTests {
                 Arguments.of("Number with Comma", "1,000", false),
                 Arguments.of("Number with Exponent", "1e10", false),
                 Arguments.of("Spaces Between Digits", "1 2 3", false)
+                Arguments.of("Sign with Decimal Point but No Digits", "+.1", false)
         );
     }
+
 
     @ParameterizedTest
     @MethodSource
@@ -216,6 +219,7 @@ public class RegexTests {
                 Arguments.of("String with Trailing Quote Inside", "\"unescaped quote inside\"example\"", false),
                 Arguments.of("String with Invalid Escape Sequence 2", "\"invalid\\gescape\"", false),
                 Arguments.of("Unclosed Escape Sequence", "\"Escape sequence \\\"", false)
+                Arguments.of("String with Multiple Unescaped Quotes", "\"multiple \"unescaped\" quotes\"", false)
         );
     }
 

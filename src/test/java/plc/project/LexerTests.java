@@ -183,11 +183,28 @@ public class LexerTests {
                         new Token(Token.Type.OPERATOR, "<=", 0)
                 )),
                 Arguments.of("Operator Parenthesis", "(", Arrays.asList(
-                        new Token(Token.Type.OPERATOR, "(", 0)
-                ))
+                        new Token(Token.Type.OPERATOR, "(", 0)))
         );
     }
 
+    @ParameterizedTest
+    @MethodSource
+    void testWhitespaceHandling(String test, String input, List<Token> expected) {
+        test(input, expected, true);
+    }
+
+    private static Stream<Arguments> testWhitespaceHandling() {
+        return Stream.of(
+                Arguments.of("Backspace in Identifier", "one\u0008two", Arrays.asList(
+                        new Token(Token.Type.IDENTIFIER, "one", 0),
+                        new Token(Token.Type.IDENTIFIER, "two", 4)  // Backspace is ignored here
+                )),
+                Arguments.of("Backspace in Operator", "=\u0008<=", Arrays.asList(
+                        new Token(Token.Type.OPERATOR, "=", 0),
+                        new Token(Token.Type.OPERATOR, "<=", 2)  // Backspace ignored, proper lexing of operator
+                ))
+        );
+    }
 
     @Test
     void testException() {

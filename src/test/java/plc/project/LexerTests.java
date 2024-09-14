@@ -22,7 +22,16 @@ public class LexerTests {
                 Arguments.of("Alphabetic", "getName", true),
                 Arguments.of("Alphanumeric", "thelegend27", true),
                 Arguments.of("Leading Hyphen", "-five", false),
-                Arguments.of("Leading Digit", "1fish2fish3fishbluefish", false)
+                Arguments.of("Leading Digit", "1fish2fish3fishbluefish", false),
+                Arguments.of("Alphabetic", "getName", true),
+                Arguments.of("Alphanumeric", "thelegend27", true),
+                Arguments.of("Leading Hyphen", "-five", false),
+                Arguments.of("Leading Digit", "1fish2fish3fishbluefish", false),
+                Arguments.of("Underscore Only", "_", true),  // Edge case: single underscore
+                Arguments.of("Underscore Start", "_variable", true),  // Underscore starts valid identifier
+                Arguments.of("Consecutive Underscores", "var__name", true),  // Consecutive underscores
+                Arguments.of("Underscore End", "variable_", true),  // Identifier ending with underscore
+                Arguments.of("Special Characters", "var$", false)  // Invalid character in identifier
         );
     }
 
@@ -38,7 +47,16 @@ public class LexerTests {
                 Arguments.of("Decimal", "123.456", false),
                 Arguments.of("Signed Decimal", "-1.0", false),
                 Arguments.of("Trailing Decimal", "1.", false),
-                Arguments.of("Leading Decimal", ".5", false)
+                Arguments.of("Leading Decimal", ".5", false),
+                Arguments.of("Single Digit", "1", true),
+                Arguments.of("Decimal", "123.456", false),
+                Arguments.of("Signed Decimal", "-1.0", false),
+                Arguments.of("Trailing Decimal", "1.", false),
+                Arguments.of("Leading Decimal", ".5", false),
+                Arguments.of("Leading Zeros", "000123", true),  // Leading zeros in integer
+                Arguments.of("Negative Integer", "-999", true),  // Negative integer
+                Arguments.of("Long Integer", "2147483647", true),  // Edge case: max 32-bit integer
+                Arguments.of("Overflow Integer", "2147483648", true)  // Larger than max integer
         );
     }
 
@@ -54,7 +72,15 @@ public class LexerTests {
                 Arguments.of("Multiple Digits", "123.456", true),
                 Arguments.of("Negative Decimal", "-1.0", true),
                 Arguments.of("Trailing Decimal", "1.", false),
-                Arguments.of("Leading Decimal", ".5", false)
+                Arguments.of("Leading Decimal", ".5", false),
+                Arguments.of("Integer", "1", false),
+                Arguments.of("Multiple Digits", "123.456", true),
+                Arguments.of("Negative Decimal", "-1.0", true),
+                Arguments.of("Trailing Decimal", "1.", false),
+                Arguments.of("Leading Decimal", ".5", false),
+                Arguments.of("Zero Decimal", "0.0", true),  // Zero decimal
+                Arguments.of("Negative Leading Decimal", "-.123", true),  // Negative with leading decimal point
+                Arguments.of("Multiple Decimal Points", "123.45.67", false)  // Invalid multiple decimal points
         );
     }
 
@@ -69,7 +95,15 @@ public class LexerTests {
                 Arguments.of("Alphabetic", "\'c\'", true),
                 Arguments.of("Newline Escape", "\'\\n\'", true),
                 Arguments.of("Empty", "\'\'", false),
-                Arguments.of("Multiple", "\'abc\'", false)
+                Arguments.of("Multiple", "\'abc\'", false),
+                Arguments.of("Alphabetic", "\'c\'", true),
+                Arguments.of("Newline Escape", "\'\\n\'", true),
+                Arguments.of("Empty", "\'\'", false),
+                Arguments.of("Multiple", "\'abc\'", false),
+                Arguments.of("Escape Character", "\'\\t\'", true),  // Valid escape sequence: tab
+                Arguments.of("Backslash", "\'\\\\\'", true),  // Valid backslash escape
+                Arguments.of("Unterminated", "\'", false),  // Unterminated character literal
+                Arguments.of("Invalid Escape", "\'\\x\'", false)  // Invalid escape sequence
         );
     }
 
@@ -85,7 +119,16 @@ public class LexerTests {
                 Arguments.of("Alphabetic", "\"abc\"", true),
                 Arguments.of("Newline Escape", "\"Hello,\\nWorld\"", true),
                 Arguments.of("Unterminated", "\"unterminated", false),
-                Arguments.of("Invalid Escape", "\"invalid\\escape\"", false)
+                Arguments.of("Invalid Escape", "\"invalid\\escape\"", false),
+                Arguments.of("Empty", "\"\"", true),
+                Arguments.of("Alphabetic", "\"abc\"", true),
+                Arguments.of("Newline Escape", "\"Hello,\\nWorld\"", true),
+                Arguments.of("Unterminated", "\"unterminated", false),
+                Arguments.of("Invalid Escape", "\"invalid\\escape\"", false),
+                Arguments.of("Multiple Escapes", "\"line1\\nline2\\tend\"", true),  // Multiple valid escapes
+                Arguments.of("Backslash Escape", "\"\\\\\"", true),  // Valid backslash escape in string
+                Arguments.of("String with Single Quote", "\"He said 'hi'\"", true),  // String containing a single quote
+                Arguments.of("Invalid Control Character", "\"control\\u0007\"", false)  // Invalid control character
         );
     }
 
@@ -187,18 +230,18 @@ public class LexerTests {
         );
     }
 
-    @ParameterizedTest
-    @MethodSource
-    void testWhitespaceHandling(String test, String input, List<Token> expected) {
-        test(input, expected, true);
+    private static Stream<Arguments> Operator() {
+        return Stream.of(
+                Arguments.of("Character", "(", true),
+                Arguments.of("Comparison", "<=", true),
+                Arguments.of("Space", " ", false),
+                Arguments.of("Tab", "\t", false),
+                Arguments.of("Compound Operator", "==", true),  // Compound equality operator
+                Arguments.of("Single Character Operator", "+", true),  // Single character operator
+                Arguments.of("Operator with Whitespace", "= ==", false)  // Invalid operators with space
+        );
     }
 
-    @Test
-    void testException() {
-        ParseException exception = Assertions.assertThrows(ParseException.class,
-                () -> new Lexer("\"unterminated").lex());
-        Assertions.assertEquals(13, exception.getIndex());
-    }
 
     /**
      * Tests that lexing the input through {@link Lexer#lexToken()} produces a

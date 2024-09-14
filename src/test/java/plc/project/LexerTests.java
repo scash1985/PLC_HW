@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -130,6 +129,65 @@ public class LexerTests {
                 ))
         );
     }
+
+    @ParameterizedTest
+    @MethodSource
+    void testWhitespace(String test, String input, List<Token> expected) {
+        test(input, expected, true);
+    }
+
+    private static Stream<Arguments> testWhitespace() {
+        return Stream.of(
+                Arguments.of("Space", "LET x = 5;", Arrays.asList(
+                        new Token(Token.Type.IDENTIFIER, "LET", 0),
+                        new Token(Token.Type.IDENTIFIER, "x", 4),
+                        new Token(Token.Type.OPERATOR, "=", 6),
+                        new Token(Token.Type.INTEGER, "5", 8),
+                        new Token(Token.Type.OPERATOR, ";", 9) // Updated to include the semicolon
+                )),
+                Arguments.of("Tab", "LET\tx\t=\t5;", Arrays.asList(
+                        new Token(Token.Type.IDENTIFIER, "LET", 0),
+                        new Token(Token.Type.IDENTIFIER, "x", 4),
+                        new Token(Token.Type.OPERATOR, "=", 6),
+                        new Token(Token.Type.INTEGER, "5", 8),
+                        new Token(Token.Type.OPERATOR, ";", 9) // Updated to include the semicolon
+                )),
+                Arguments.of("Backspace", "LET\u0008x\u0008=\u00085;", Arrays.asList(
+                        new Token(Token.Type.IDENTIFIER, "LET", 0),
+                        new Token(Token.Type.IDENTIFIER, "x", 4),
+                        new Token(Token.Type.OPERATOR, "=", 6),
+                        new Token(Token.Type.INTEGER, "5", 8),
+                        new Token(Token.Type.OPERATOR, ";", 9) // Updated to include the semicolon
+                ))
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    void testOperatorWhitespace(String test, String input, List<Token> expected) {
+        test(input, expected, true);
+    }
+
+    private static Stream<Arguments> testOperatorWhitespace() {
+        return Stream.of(
+                Arguments.of("Operator with Space", "= ", Arrays.asList(
+                        new Token(Token.Type.OPERATOR, "=", 0)
+                )),
+                Arguments.of("Operator with Tab", "=\t", Arrays.asList(
+                        new Token(Token.Type.OPERATOR, "=", 0)
+                )),
+                Arguments.of("Operator with Backspace", "=\u0008", Arrays.asList(
+                        new Token(Token.Type.OPERATOR, "=", 0)
+                )),
+                Arguments.of("Operator Comparison", "<=", Arrays.asList(
+                        new Token(Token.Type.OPERATOR, "<=", 0)
+                )),
+                Arguments.of("Operator Parenthesis", "(", Arrays.asList(
+                        new Token(Token.Type.OPERATOR, "(", 0)
+                ))
+        );
+    }
+
 
     @Test
     void testException() {

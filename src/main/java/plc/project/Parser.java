@@ -52,20 +52,20 @@ public final class Parser {
      * next tokens start a field, aka {@code LET}.
      */
     public Ast.Field parseField() throws ParseException {
-        //throw new UnsupportedOperationException(); //TODO
         match("LET");
-
+        if (!match(Token.Type.IDENTIFIER)) {
+            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : -1;
+            throw new ParseException("Expected identifier after 'LET'.", errorIndex);
+        }
         String name = tokens.get(-1).getLiteral();
-        match(Token.Type.IDENTIFIER);
-
         Optional<Ast.Expr> value = Optional.empty();
-
         if (match("=")) {
             value = Optional.of(parseExpression());
         }
-
-        match(";");
-
+        if (!match(";")) {
+            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex();
+            throw new ParseException("Expected ';' after field declaration.", errorIndex);
+        }
         return new Ast.Field(name, value);
     }
 
@@ -74,33 +74,43 @@ public final class Parser {
      * next tokens start a method, aka {@code DEF}.
      */
     public Ast.Method parseMethod() throws ParseException {
-        //throw new UnsupportedOperationException(); //TODO
-        match("DEF"); // Match the 'DEF' keyword
-
+        match("DEF");
+        if (!match(Token.Type.IDENTIFIER)) {
+            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : -1;
+            throw new ParseException("Expected method name after 'DEF'.", errorIndex);
+        }
         String name = tokens.get(-1).getLiteral();
-        match(Token.Type.IDENTIFIER); // Match identifier
-
-        match("("); // Match the opening parenthesis
-
+        if (!match("(")) {
+            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex();
+            throw new ParseException("Expected '(' after method name.", errorIndex);
+        }
         List<String> parameters = new ArrayList<>();
         if (peek(Token.Type.IDENTIFIER)) {
             do {
+                if (!match(Token.Type.IDENTIFIER)) {
+                    int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex();
+                    throw new ParseException("Expected parameter name.", errorIndex);
+                }
                 String paramName = tokens.get(-1).getLiteral();
-                match(Token.Type.IDENTIFIER); // Match identifier for parameter
                 parameters.add(paramName);
             } while (match(","));
         }
-
-        match(")"); // Match the closing parenthesis
-        match("DO"); // Match the 'DO' keyword
-
+        if (!match(")")) {
+            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex();
+            throw new ParseException("Expected ')' after parameter list.", errorIndex);
+        }
+        if (!match("DO")) {
+            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex();
+            throw new ParseException("Expected 'DO' after method signature.", errorIndex);
+        }
         List<Ast.Stmt> statements = new ArrayList<>();
         while (peek("LET") || peek("IF") || peek("FOR") || peek("WHILE") || peek("RETURN") || peek(Token.Type.IDENTIFIER)) {
             statements.add(parseStatement());
         }
-
-        match("END"); // Match the 'END' keyword
-
+        if (!match("END")) {
+            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex();
+            throw new ParseException("Expected 'END' after method body.", errorIndex);
+        }
         return new Ast.Method(name, parameters, statements);
     }
 
@@ -111,8 +121,17 @@ public final class Parser {
      */
     public Ast.Stmt parseStatement() throws ParseException {
         Ast.Expr expr = parseExpression();
-        if (match("="))
-            return new Ast.Stmt.Assignment(expr, parseExpression());
+        if (match("=")) {
+            Ast.Stmt.Assignment assignment = new Ast.Stmt.Assignment(expr, parseExpression());
+            if (!match(";")) {
+                throw new ParseException("Expected semicolon after assignment.", tokens.get(-1).getIndex());
+            }
+            return assignment;
+        }
+
+        if (!match(";")) {
+            throw new ParseException("Expected semicolon after expression.", tokens.get(-1).getIndex());
+        }
         return new Ast.Stmt.Expression(expr);  // TODO: everything is just expressions for part a, expand this for part b
     }
 
@@ -225,10 +244,9 @@ public final class Parser {
      */
     public Ast.Expr parseSecondaryExpression() throws ParseException {
         Ast.Expr expr = parsePrimaryExpression();
-        String name = tokens.get(-1).getLiteral();
         while (match(".")) {
             if (match(Token.Type.IDENTIFIER)) {
-                String method = tokens.get(-1).getLiteral();
+                String name = tokens.get(-1).getLiteral();
                 if (match("(")) {
                     List<Ast.Expr> arguments = new ArrayList<>();
                     if (!peek(")")) {
@@ -237,14 +255,16 @@ public final class Parser {
                         } while (match(","));
                     }
                     if (!match(")")) {
-                        throw new ParseException("Expected closing parenthesis for function call.", tokens.get(-1).getIndex());
+                        int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex();
+                        throw new ParseException("Expected closing parenthesis for function call.", errorIndex);
                     }
-                    return new Ast.Expr.Function(Optional.of(new Ast.Expr.Access(Optional.empty(), name)), method, arguments);
+                    expr = new Ast.Expr.Function(Optional.of(expr), name, arguments);
+                } else {
+                    expr = new Ast.Expr.Access(Optional.of(expr), name);
                 }
-                return new Ast.Expr.Access(Optional.of(new Ast.Expr.Access(Optional.empty(), name)), method);
-            }
-            else {
-                throw new ParseException("Invalid secondary expression.", tokens.get(-1).getIndex());
+            } else {
+                int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : -1;
+                throw new ParseException("Expected identifier after '.'.", errorIndex);
             }
         }
         return expr;

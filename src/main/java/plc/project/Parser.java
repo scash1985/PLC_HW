@@ -184,6 +184,9 @@ public final class Parser {
      * Parses the {@code expression} rule.
      */
     public Ast.Expr parseExpression() throws ParseException {
+        if (!tokens.has(0)) {
+            throw new ParseException("Unexpected end of input.", tokens.has(0) ? tokens.get(0).getIndex() : -1);
+        }
         return parseLogicalExpression();
     }
 
@@ -220,7 +223,10 @@ public final class Parser {
         Ast.Expr expr = parseMultiplicativeExpression();
         while (match("+") || match("-")) {
             String operator = tokens.get(-1).getLiteral();
-            Ast.Expr right = parseMultiplicativeExpression();
+            if (!tokens.has(0)) { // Check for tokens before trying to parse the right operand
+                throw new ParseException("Expected expression after operator.", tokens.get(-1).getIndex());
+            }
+            Ast.Expr right = parseMultiplicativeExpression();  // Ensure this doesn't access out-of-bound tokens
             expr = new Ast.Expr.Binary(operator, expr, right);
         }
         return expr;
@@ -276,6 +282,12 @@ public final class Parser {
      * functions. It may be helpful to break these up into other methods but is
      * not strictly necessary.
      */
+    /**
+     * Parses the {@code primary-expression} rule. This is the top-level rule
+     * for expressions and includes literal values, grouping, variables, and
+     * functions. It may be helpful to break these up into other methods but is
+     * not strictly necessary.
+     */
     public Ast.Expr parsePrimaryExpression() throws ParseException {
         if (match("TRUE")) {
             return new Ast.Expr.Literal(true);
@@ -304,18 +316,22 @@ public final class Parser {
                     .replace("\\\\", "\\");
             return new Ast.Expr.Literal(str);
         } else if (match("(")) {
-            Ast.Expr expression = parseExpression(); // Assuming you have a method for parsing expressions
+            Ast.Expr expression = parseExpression();
             if (!match(")")) {
-                throw new ParseException("Expected closing parenthesis.", tokens.get(-1).getIndex());
+                // Throw exception if the closing parenthesis is missing
+                throw new ParseException("Expected closing parenthesis.", tokens.has(0) ? tokens.get(0).getIndex() : -1);
             }
             return new Ast.Expr.Group(expression);
+        } else if (!tokens.has(0)) {
+            // Always check for unexpected end of input
+            throw new ParseException("Unexpected end of input.", -1);
         } else if (match(Token.Type.IDENTIFIER)) {
             String name = tokens.get(-1).getLiteral();
-            if (match("(")) { // Check if this is a function call
+            if (match("(")) {
                 List<Ast.Expr> arguments = new ArrayList<>();
-                if (!peek(")")) { // If the next token is not a closing parenthesis
+                if (!peek(")")) {
                     do {
-                        arguments.add(parseExpression()); // Assuming you have a method for parsing expressions
+                        arguments.add(parseExpression());
                     } while (match(","));
                 }
                 if (!match(")")) {
@@ -323,11 +339,15 @@ public final class Parser {
                 }
                 return new Ast.Expr.Function(Optional.empty(), name, arguments);
             }
-            return new Ast.Expr.Access(Optional.empty(), name); // Regular identifier access
+            return new Ast.Expr.Access(Optional.empty(), name);
+        } else if (match(")")) {
+            throw new ParseException("Unmatched closing parenthesis.", tokens.get(-1).getIndex());
         } else {
             throw new ParseException("Invalid primary expression.", tokens.get(-1).getIndex());
         }
     }
+
+
 
     /**
      * As in the lexer, returns {@code true} if the current sequence of tokens

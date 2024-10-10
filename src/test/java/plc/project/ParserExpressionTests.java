@@ -37,6 +37,29 @@ final class ParserExpressionTests {
                                 new Token(Token.Type.OPERATOR, ";", 6)
                         ),
                         new Ast.Stmt.Expression(new Ast.Expr.Function(Optional.empty(), "name", Arrays.asList()))
+                ),
+
+                Arguments.of("Variable Expression",
+                        Arrays.asList(
+                                new Token(Token.Type.IDENTIFIER, "expr", 0),
+                                new Token(Token.Type.OPERATOR, ";", 5) // Assuming semicolon is necessary
+                        ),
+                        new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "expr"))
+                ),
+                Arguments.of("Function Expression",
+                        Arrays.asList(
+                                new Token(Token.Type.IDENTIFIER, "func", 0),
+                                new Token(Token.Type.OPERATOR, "(", 4),
+                                new Token(Token.Type.OPERATOR, ")", 5),
+                                new Token(Token.Type.OPERATOR, ";", 6) // Assuming semicolon is necessary
+                        ),
+                        new Ast.Stmt.Expression(new Ast.Expr.Function(Optional.empty(), "func", Arrays.asList()))
+                ),
+                Arguments.of("Missing Semicolon",
+                        Arrays.asList(
+                                new Token(Token.Type.IDENTIFIER, "x", 0) // Missing semicolon case
+                        ),
+                        null // Expect ParseException for missing semicolon
                 )
         );
     }
@@ -61,6 +84,66 @@ final class ParserExpressionTests {
                                 new Ast.Expr.Access(Optional.empty(), "name"),
                                 new Ast.Expr.Access(Optional.empty(), "value")
                         )
+                ),
+
+                Arguments.of("Variable Assignment",
+                        Arrays.asList(
+                                new Token(Token.Type.IDENTIFIER, "name", 0),
+                                new Token(Token.Type.OPERATOR, "=", 5),
+                                new Token(Token.Type.IDENTIFIER, "expr", 7),
+                                new Token(Token.Type.OPERATOR, ";", 11)
+                        ),
+                        new Ast.Stmt.Assignment(
+                                new Ast.Expr.Access(Optional.empty(), "name"),
+                                new Ast.Expr.Access(Optional.empty(), "expr")
+                        )
+                ),
+                Arguments.of("Field Assignment",
+                        Arrays.asList(
+                                new Token(Token.Type.IDENTIFIER, "obj", 0),
+                                new Token(Token.Type.OPERATOR, ".", 3),
+                                new Token(Token.Type.IDENTIFIER, "field", 4),
+                                new Token(Token.Type.OPERATOR, "=", 10),
+                                new Token(Token.Type.IDENTIFIER, "expr", 12),
+                                new Token(Token.Type.OPERATOR, ";", 16)
+                        ),
+                        new Ast.Stmt.Assignment(
+                                new Ast.Expr.Access(Optional.of(new Ast.Expr.Access(Optional.empty(), "obj")), "field"),
+                                new Ast.Expr.Access(Optional.empty(), "expr")
+                        )
+                ),
+                Arguments.of("Complex Value Assignment",
+                        Arrays.asList(
+                                new Token(Token.Type.IDENTIFIER, "name", 0),
+                                new Token(Token.Type.OPERATOR, "=", 5),
+                                new Token(Token.Type.IDENTIFIER, "expr1", 7),
+                                new Token(Token.Type.OPERATOR, "+", 13),
+                                new Token(Token.Type.IDENTIFIER, "expr2", 15),
+                                new Token(Token.Type.OPERATOR, ";", 21)
+                        ),
+                        new Ast.Stmt.Assignment(
+                                new Ast.Expr.Access(Optional.empty(), "name"),
+                                new Ast.Expr.Binary("+",
+                                        new Ast.Expr.Access(Optional.empty(), "expr1"),
+                                        new Ast.Expr.Access(Optional.empty(), "expr2")
+                                )
+                        )
+                ),
+                Arguments.of("Missing Value in Assignment",
+                        Arrays.asList(
+                                new Token(Token.Type.IDENTIFIER, "name", 0),
+                                new Token(Token.Type.OPERATOR, "=", 5),
+                                new Token(Token.Type.OPERATOR, ";", 7) // Missing value
+                        ),
+                        null // Expect ParseException for missing value
+                ),
+                Arguments.of("Missing Semicolon in Assignment",
+                        Arrays.asList(
+                                new Token(Token.Type.IDENTIFIER, "name", 0),
+                                new Token(Token.Type.OPERATOR, "=", 5),
+                                new Token(Token.Type.IDENTIFIER, "expr", 7) // Missing semicolon
+                        ),
+                        null // Expect ParseException for missing semicolon
                 )
         );
     }
@@ -532,6 +615,19 @@ final class ParserExpressionTests {
                                 new Token(Token.Type.OPERATOR, "(", 0),
                                 new Token(Token.Type.IDENTIFIER, "expr", 1),
                                 new Token(Token.Type.OPERATOR, "]", 5)
+                        )
+                ),
+
+                Arguments.of("Invalid Expression",
+                        Arrays.asList(
+                                new Token(Token.Type.OPERATOR, "!", 0) // Invalid expression
+                        )
+                ),
+                Arguments.of("Missing Closing Parenthesis",
+                        Arrays.asList(
+                                new Token(Token.Type.OPERATOR, "(", 0),
+                                new Token(Token.Type.IDENTIFIER, "expr", 1)
+                                // Missing closing parenthesis
                         )
                 )
         );

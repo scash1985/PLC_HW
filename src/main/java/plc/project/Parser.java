@@ -32,17 +32,22 @@ public final class Parser {
      * Parses the {@code source} rule.
      */
     public Ast.Source parseSource() throws ParseException {
+        //throw new UnsupportedOperationException(); //TODO
         List<Ast.Field> fields = new ArrayList<>();
         List<Ast.Method> methods = new ArrayList<>();
 
-        // Only match "LET" for fields, not identifiers (to avoid misinterpreting "DEF" as a field)
+        // Handle fields first (LET keyword)
         while (peek("LET")) {
             fields.add(parseField());
         }
 
-        // Match "DEF" for methods
+        // Handle methods (DEF keyword)
         while (peek("DEF")) {
             methods.add(parseMethod());
+        }
+
+        if (tokens.has(0)) {
+            throw new ParseException("Unexpected tokens after parsing fields and methods.", tokens.get(0).getIndex());
         }
 
         return new Ast.Source(fields, methods);
@@ -106,12 +111,11 @@ public final class Parser {
         }
         List<Ast.Stmt> statements = new ArrayList<>();
         while (peek("LET") || peek("IF") || peek("FOR") || peek("WHILE") || peek("RETURN") || peek(Token.Type.IDENTIFIER)) {
-            Ast.Stmt stmt = parseStatement();
-            statements.add(stmt);
-            // Ensure the statement is correctly terminated by a semicolon
-            if (!(stmt instanceof Ast.Stmt.Expression) && !match(";")) {
-                throw new ParseException("Expected semicolon after statement.", tokens.get(-1).getIndex());
-            }
+            statements.add(parseStatement());
+        }
+        if (!match("END")) {
+            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
+            throw new ParseException("Expected 'END' after method body.", errorIndex);
         }
         return new Ast.Method(name, parameters, statements);
     }
@@ -133,6 +137,7 @@ public final class Parser {
         } else if (match("RETURN")) {
             return parseReturnStatement();
         } else {
+            // Parse as expression/assignment statement
             Ast.Expr expr = parseExpression();
             if (match("=")) {
                 Ast.Stmt.Assignment assignment = new Ast.Stmt.Assignment(expr, parseExpression());

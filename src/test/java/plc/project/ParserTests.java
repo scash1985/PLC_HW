@@ -542,6 +542,200 @@ final class ParserTests {
         test(input, expected, Parser::parseSource);
     }
 
+    @ParameterizedTest
+    @MethodSource
+    void testSourceErrors(String test, List<Token> tokens, Class<? extends Throwable> expectedException, String expectedMessage) {
+        Parser parser = new Parser(tokens);
+        ParseException exception = Assertions.assertThrows(ParseException.class, () -> parser.parseSource());
+        Assertions.assertEquals(expectedMessage, exception.getMessage());
+    }
+
+    private static Stream<Arguments> testSourceErrors() {
+        return Stream.of(
+                Arguments.of("Missing Semicolon in Field",
+                        Arrays.asList(
+                                // LET name = expr  (missing ;)
+                                new Token(Token.Type.IDENTIFIER, "LET", 0),
+                                new Token(Token.Type.IDENTIFIER, "name", 4),
+                                new Token(Token.Type.OPERATOR, "=", 9),
+                                new Token(Token.Type.IDENTIFIER, "expr", 11)
+                        ),
+                        ParseException.class, "Expected semicolon after expression."
+                ),
+                Arguments.of("Missing Semicolon in Method",
+                        Arrays.asList(
+                                // DEF name() DO stmt  (missing ;)
+                                new Token(Token.Type.IDENTIFIER, "DEF", 0),
+                                new Token(Token.Type.IDENTIFIER, "name", 4),
+                                new Token(Token.Type.OPERATOR, "(", 8),
+                                new Token(Token.Type.OPERATOR, ")", 9),
+                                new Token(Token.Type.IDENTIFIER, "DO", 11),
+                                new Token(Token.Type.IDENTIFIER, "stmt", 14)
+                        ),
+                        ParseException.class, "Expected semicolon after expression."
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    void testDoErrors(String test, List<Token> tokens, Class<? extends Throwable> expectedException, String expectedMessage) {
+        Parser parser = new Parser(tokens);
+        ParseException exception = Assertions.assertThrows(ParseException.class, () -> parser.parseStatement());
+        Assertions.assertEquals(expectedMessage, exception.getMessage());
+    }
+
+    private static Stream<Arguments> testDoErrors() {
+        return Stream.of(
+                Arguments.of("Missing DO in IF statement",
+                        Arrays.asList(
+                                // IF expr  (missing DO)
+                                new Token(Token.Type.IDENTIFIER, "IF", 0),
+                                new Token(Token.Type.IDENTIFIER, "expr", 3)
+                        ),
+                        ParseException.class, "Expected 'DO' after 'IF' condition."
+                ),
+                Arguments.of("Invalid DO in IF statement",
+                        Arrays.asList(
+                                // IF expr THEN  (invalid DO, should be DO instead of THEN)
+                                new Token(Token.Type.IDENTIFIER, "IF", 0),
+                                new Token(Token.Type.IDENTIFIER, "expr", 3),
+                                new Token(Token.Type.IDENTIFIER, "THEN", 8)
+                        ),
+                        ParseException.class, "Expected 'DO', but received 'THEN'."
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    void testExpressionErrors(String test, List<Token> tokens, Class<? extends Throwable> expectedException, String expectedMessage) {
+        Parser parser = new Parser(tokens);
+        ParseException exception = Assertions.assertThrows(ParseException.class, () -> parser.parseExpression());
+        Assertions.assertEquals(expectedMessage, exception.getMessage());
+    }
+
+    private static Stream<Arguments> testExpressionErrors() {
+        return Stream.of(
+                Arguments.of("Invalid Expression",
+                        Arrays.asList(
+                                // ?
+                                new Token(Token.Type.OPERATOR, "?", 0)
+                        ),
+                        ParseException.class, "Invalid expression."
+                ),
+                Arguments.of("Missing Closing Parenthesis",
+                        Arrays.asList(
+                                // (expr
+                                new Token(Token.Type.OPERATOR, "(", 0),
+                                new Token(Token.Type.IDENTIFIER, "expr", 1)
+                        ),
+                        ParseException.class, "Expected closing parenthesis."
+                ),
+                Arguments.of("Invalid Closing Parenthesis",
+                        Arrays.asList(
+                                // (expr]
+                                new Token(Token.Type.OPERATOR, "(", 0),
+                                new Token(Token.Type.IDENTIFIER, "expr", 1),
+                                new Token(Token.Type.OPERATOR, "]", 5)
+                        ),
+                        ParseException.class, "Mismatched closing parenthesis, expected ')'."
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    void testSourceStatements(String test, List<Token> tokens, Ast.Source expected) {
+        Parser parser = new Parser(tokens);
+        Assertions.assertEquals(expected, parser.parseSource());
+    }
+
+    private static Stream<Arguments> testSourceStatements() {
+        return Stream.of(
+                Arguments.of("Empty Source",
+                        Arrays.asList(),
+                        new Ast.Source(Arrays.asList(), Arrays.asList())
+                ),
+                Arguments.of("Field",
+                        Arrays.asList(
+                                // LET name = expr;
+                                new Token(Token.Type.IDENTIFIER, "LET", 0),
+                                new Token(Token.Type.IDENTIFIER, "name", 4),
+                                new Token(Token.Type.OPERATOR, "=", 9),
+                                new Token(Token.Type.IDENTIFIER, "expr", 11),
+                                new Token(Token.Type.OPERATOR, ";", 15)
+                        ),
+                        new Ast.Source(
+                                Arrays.asList(new Ast.Field("name", Optional.of(new Ast.Expr.Access(Optional.empty(), "expr")))),
+                                Arrays.asList()
+                        )
+                ),
+                Arguments.of("Method",
+                        Arrays.asList(
+                                // DEF name() DO stmt; END
+                                new Token(Token.Type.IDENTIFIER, "DEF", 0),
+                                new Token(Token.Type.IDENTIFIER, "name", 4),
+                                new Token(Token.Type.OPERATOR, "(", 8),
+                                new Token(Token.Type.OPERATOR, ")", 9),
+                                new Token(Token.Type.IDENTIFIER, "DO", 11),
+                                new Token(Token.Type.IDENTIFIER, "stmt", 14),
+                                new Token(Token.Type.OPERATOR, ";", 18),
+                                new Token(Token.Type.IDENTIFIER, "END", 20)
+                        ),
+                        new Ast.Source(
+                                Arrays.asList(),
+                                Arrays.asList(new Ast.Method("name", Arrays.asList(), Arrays.asList(
+                                        new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt"))
+                                )))
+                        )
+                )
+        );
+    }
+
+    @Test
+        //missing '='
+    void testExceptionParse() {
+        //Let name expr;
+        ParseException exceptionParsing = Assertions.assertThrows(ParseException.class,
+                () -> new Parser(Arrays.asList(
+                        new Token(Token.Type.IDENTIFIER, "LET", 0),
+                        new Token(Token.Type.IDENTIFIER, "name", 4),
+                        new Token(Token.Type.IDENTIFIER, "expr", 9),
+                        new Token(Token.Type.OPERATOR, ";", 13)
+                )).parseField());
+        Assertions.assertEquals(8, exceptionParsing.getIndex());
+    }
+    @Test
+    void testExceptionInvalidMethod() {
+        //DEF name() stmt; END (missing 'DO')
+        ParseException exceptionParsing = Assertions.assertThrows(ParseException.class,
+                () -> new Parser(Arrays.asList(
+                        new Token(Token.Type.IDENTIFIER, "DEF", 0),
+                        new Token(Token.Type.IDENTIFIER, "name", 4),
+                        new Token(Token.Type.OPERATOR, "(", 8),
+                        new Token(Token.Type.OPERATOR, ")", 9),
+                        new Token(Token.Type.IDENTIFIER, "stmt", 11),
+                        new Token(Token.Type.OPERATOR, ";", 15),
+                        new Token(Token.Type.IDENTIFIER, "END", 17)
+                )).parseMethod());
+        Assertions.assertEquals(10, exceptionParsing.getIndex());
+    }
+
+    @Test
+    void testExceptionMissingEND() {
+        //DEF name() stmt; END (missing 'DO')
+        ParseException exceptionParsing = Assertions.assertThrows(ParseException.class,
+                () -> new Parser(Arrays.asList(
+                        new Token(Token.Type.IDENTIFIER, "DEF", 0),
+                        new Token(Token.Type.IDENTIFIER, "name", 4),
+                        new Token(Token.Type.OPERATOR, "(", 8),
+                        new Token(Token.Type.OPERATOR, ")", 9),
+                        new Token(Token.Type.IDENTIFIER, "DO", 11)
+                )).parseMethod());
+        Assertions.assertEquals(14, exceptionParsing.getIndex());
+    }
+
     /**
      * Standard test function. If expected is null, a ParseException is expected
      * to be thrown (not used in the provided tests).

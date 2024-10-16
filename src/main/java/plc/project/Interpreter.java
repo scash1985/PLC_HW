@@ -1,6 +1,8 @@
 package plc.project;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -77,15 +79,27 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.Assignment ast) {
-        Environment.Variable variable;
         if (ast.getReceiver() instanceof Ast.Expr.Access) {
             Ast.Expr.Access access = (Ast.Expr.Access) ast.getReceiver();
-            variable = scope.lookupVariable(access.getName());
+
+            // Check if receiver is present
+            if (access.getReceiver().isPresent()) {
+                Environment.PlcObject receiver = visit(access.getReceiver().get());
+                Environment.Variable variable = receiver.getField(access.getName());
+                variable.setValue(visit(ast.getValue()));
+            } else {
+                // If no receiver, the variable is in the current scope
+                Environment.Variable variable = scope.lookupVariable(access.getName());
+                if (variable == null) {
+                    throw new RuntimeException("Variable '" + access.getName() + "' is not defined.");
+                }
+                variable.setValue(visit(ast.getValue()));
+            }
+
+            return Environment.NIL;
         } else {
-            throw new RuntimeException("Receiver is not a valid variable.");
+            throw new RuntimeException("Receiver is not a valid access expression.");
         }
-        variable.setValue(visit(ast.getValue()));
-        return Environment.NIL;
     }
 
     @Override
@@ -104,19 +118,42 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.For ast) {
-        throw new Return(visit(ast.getValue()));
+        Environment.PlcObject iterable = visit(ast.getValue());
+        List<Environment.PlcObject> list = requireType(List.class, iterable);
+
+        for (Environment.PlcObject element : list) {
+            // Create a new scope for each iteration
+            Scope iterationScope = new Scope(scope);
+
+            // Define the variable within the new scope
+            iterationScope.defineVariable(ast.getName(), element);
+
+            try {
+                scope = iterationScope;  // Use the new scope
+                for (Ast.Stmt stmt : ast.getStatements()) {
+                    visit(stmt);  // Visit the statements within this scope
+                }
+            } finally {
+                scope = scope.getParent();  // Reset the scope back to the parent after iteration
+            }
+        }
+
+        return Environment.NIL;
     }
+
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.While ast) {
         while (requireType(Boolean.class, visit(ast.getCondition()))) {
             try {
-                scope = new Scope(scope);
+                // Remove the scope creation inside the loop
+                //scope = new Scope(scope);
                 for (Ast.Stmt stmt : ast.getStatements()) {
                     visit(stmt);
                 }
             } finally {
-                scope = scope.getParent();
+                // Don't reset the scope at the end of each loop iteration
+                //scope = scope.getParent();
             }
         }
         return Environment.NIL;
@@ -129,6 +166,9 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Literal ast) {
+        if (ast.getLiteral() == null) {
+            return Environment.NIL;
+        }
         return Environment.create(ast.getLiteral());
     }
 
@@ -144,33 +184,98 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
         switch (ast.getOperator()) {
             case "+":
-                return Environment.create(requireType(BigInteger.class, left).add(requireType(BigInteger.class, right)));
+                if (left.getValue() instanceof String || right.getValue() instanceof String) {
+                    return Environment.create(requireType(String.class, left) + requireType(String.class, right));
+                } else if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
+                    return Environment.create(requireType(BigInteger.class, left).add(requireType(BigInteger.class, right)));
+                } else if (left.getValue() instanceof BigDecimal || right.getValue() instanceof BigDecimal) {
+                    // Convert BigInteger to BigDecimal if necessary
+                    BigDecimal leftDecimal = (left.getValue() instanceof BigInteger)
+                            ? new BigDecimal((BigInteger) left.getValue())
+                            : requireType(BigDecimal.class, left);
+                    BigDecimal rightDecimal = (right.getValue() instanceof BigInteger)
+                            ? new BigDecimal((BigInteger) right.getValue())
+                            : requireType(BigDecimal.class, right);
+                    return Environment.create(leftDecimal.add(rightDecimal));
+                }
+                break;
             case "-":
-                return Environment.create(requireType(BigInteger.class, left).subtract(requireType(BigInteger.class, right)));
+                if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
+                    return Environment.create(requireType(BigInteger.class, left).subtract(requireType(BigInteger.class, right)));
+                } else {
+                    BigDecimal leftDecimal = (left.getValue() instanceof BigInteger)
+                            ? new BigDecimal((BigInteger) left.getValue())
+                            : requireType(BigDecimal.class, left);
+                    BigDecimal rightDecimal = (right.getValue() instanceof BigInteger)
+                            ? new BigDecimal((BigInteger) right.getValue())
+                            : requireType(BigDecimal.class, right);
+                    return Environment.create(leftDecimal.subtract(rightDecimal));
+                }
             case "*":
-                return Environment.create(requireType(BigInteger.class, left).multiply(requireType(BigInteger.class, right)));
+                if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
+                    return Environment.create(requireType(BigInteger.class, left).multiply(requireType(BigInteger.class, right)));
+                } else {
+                    BigDecimal leftDecimal = (left.getValue() instanceof BigInteger)
+                            ? new BigDecimal((BigInteger) left.getValue())
+                            : requireType(BigDecimal.class, left);
+                    BigDecimal rightDecimal = (right.getValue() instanceof BigInteger)
+                            ? new BigDecimal((BigInteger) right.getValue())
+                            : requireType(BigDecimal.class, right);
+                    return Environment.create(leftDecimal.multiply(rightDecimal));
+                }
             case "/":
-                return Environment.create(requireType(BigInteger.class, left).divide(requireType(BigInteger.class, right)));
-            case "&&":
-                return Environment.create(requireType(Boolean.class, left) && requireType(Boolean.class, right));
+                BigDecimal leftDecimal = (left.getValue() instanceof BigInteger)
+                        ? new BigDecimal((BigInteger) left.getValue())
+                        : requireType(BigDecimal.class, left);
+                BigDecimal rightDecimal = (right.getValue() instanceof BigInteger)
+                        ? new BigDecimal((BigInteger) right.getValue())
+                        : requireType(BigDecimal.class, right);
+                if (rightDecimal.compareTo(BigDecimal.ZERO) == 0) {
+                    throw new ArithmeticException("Division by zero");
+                }
+                return Environment.create(leftDecimal.divide(rightDecimal, 10, RoundingMode.HALF_UP).setScale(1, RoundingMode.HALF_UP));
+            case "OR":
             case "||":
-                return Environment.create(requireType(Boolean.class, left) || requireType(Boolean.class, right));
+                // Short-circuit: If left is true, return true without evaluating right
+                if (requireType(Boolean.class, left)) {
+                    return Environment.create(true);
+                }
+                return Environment.create(requireType(Boolean.class, right));
+            case "AND":
+            case "&&":
+                // Short-circuit: If left is false, return false without evaluating right
+                if (!requireType(Boolean.class, left)) {
+                    return Environment.create(false);
+                }
+                return Environment.create(requireType(Boolean.class, right));
+            case "<":
+                return Environment.create(requireType(BigInteger.class, left).compareTo(requireType(BigInteger.class, right)) < 0);
+            case ">=":
+                return Environment.create(requireType(BigInteger.class, left).compareTo(requireType(BigInteger.class, right)) >= 0);
+            case "==":
+                return Environment.create(left.getValue().equals(right.getValue()));
             default:
                 throw new UnsupportedOperationException("Unsupported operator: " + ast.getOperator());
         }
+        throw new UnsupportedOperationException("Invalid types for operator: " + ast.getOperator());
     }
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Access ast) {
         if (ast.getReceiver().isPresent()) {
-            // If the receiver is present, it’s a field access.
             Environment.PlcObject receiver = visit(ast.getReceiver().get());
             return receiver.getField(ast.getName()).getValue();
         } else {
-            // Otherwise, it's a variable access.
-            return scope.lookupVariable(ast.getName()).getValue();
+            Environment.Variable variable = scope.lookupVariable(ast.getName());
+            if (variable != null) {
+                return variable.getValue();
+            } else {
+                throw new RuntimeException("Variable '" + ast.getName() + "' is not defined.");
+            }
         }
     }
+
+
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Function ast) {

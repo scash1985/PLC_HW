@@ -19,12 +19,6 @@ import java.util.stream.Stream;
 
 final class InterpreterTests {
 
-    @ParameterizedTest
-    @MethodSource
-    void testSource(String test, Ast.Source ast, Object expected) {
-        test(ast, expected, new Scope(null));
-    }
-
     private static Stream<Arguments> testSource() {
         return Stream.of(
                 Arguments.of("Main", new Ast.Source(

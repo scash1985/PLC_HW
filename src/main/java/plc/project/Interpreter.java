@@ -193,9 +193,10 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
                 if (left.getValue() instanceof String || right.getValue() instanceof String) {
                     return Environment.create(requireType(String.class, left) + requireType(String.class, right));
                 } else if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
+                    // Properly handle BigInteger addition
                     return Environment.create(requireType(BigInteger.class, left).add(requireType(BigInteger.class, right)));
                 } else if (left.getValue() instanceof BigDecimal || right.getValue() instanceof BigDecimal) {
-                    // Convert BigInteger to BigDecimal if necessary
+                    // Handle BigDecimal addition
                     BigDecimal leftDecimal = (left.getValue() instanceof BigInteger)
                             ? new BigDecimal((BigInteger) left.getValue())
                             : requireType(BigDecimal.class, left);
@@ -271,19 +272,19 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
     @Override
     public Environment.PlcObject visit(Ast.Expr.Access ast) {
         if (ast.getReceiver().isPresent()) {
+            // Retrieve the value from the receiver's field
             Environment.PlcObject receiver = visit(ast.getReceiver().get());
             return receiver.getField(ast.getName()).getValue();
         } else {
+            // Retrieve the variable from the current scope
             Environment.Variable variable = scope.lookupVariable(ast.getName());
             if (variable != null) {
-                return variable.getValue();
+                return variable.getValue();  // Ensure variable exists and return its value
             } else {
                 throw new RuntimeException("Variable '" + ast.getName() + "' is not defined.");
             }
         }
     }
-
-
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Function ast) {

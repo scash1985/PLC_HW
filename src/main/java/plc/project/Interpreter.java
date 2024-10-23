@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
@@ -30,8 +31,10 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
         for (Ast.Method method : ast.getMethods()) {
             visit(method);
         }
-        return Environment.NIL;
+        Environment.Function mainFunction = scope.lookupFunction("main", 0);
+        return mainFunction.invoke(new ArrayList<>());
     }
+
 
     @Override
     public Environment.PlcObject visit(Ast.Field ast) {
@@ -64,7 +67,8 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.Expression ast) {
-        return visit(ast.getExpression());
+        visit(ast.getExpression());
+        return Environment.NIL;
     }
 
     @Override
@@ -180,7 +184,9 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
     @Override
     public Environment.PlcObject visit(Ast.Expr.Binary ast) {
         Environment.PlcObject left = visit(ast.getLeft());
-        Environment.PlcObject right = visit(ast.getRight());
+        Environment.PlcObject right =
+                (!Objects.equals(ast.getOperator(), "AND") && !Objects.equals(ast.getOperator(), "OR") &&
+                        !Objects.equals(ast.getOperator(), "&&") && !Objects.equals(ast.getOperator(), "||")) ? visit(ast.getRight()) : left;
 
         switch (ast.getOperator()) {
             case "+":
@@ -240,6 +246,7 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
                 if (requireType(Boolean.class, left)) {
                     return Environment.create(true);
                 }
+                right = visit(ast.getRight());
                 return Environment.create(requireType(Boolean.class, right));
             case "AND":
             case "&&":
@@ -247,6 +254,7 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
                 if (!requireType(Boolean.class, left)) {
                     return Environment.create(false);
                 }
+                right = visit(ast.getRight());
                 return Environment.create(requireType(Boolean.class, right));
             case "<":
                 return Environment.create(requireType(BigInteger.class, left).compareTo(requireType(BigInteger.class, right)) < 0);

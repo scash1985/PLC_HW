@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,10 +32,8 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
         for (Ast.Method method : ast.getMethods()) {
             visit(method);
         }
-        Environment.Function mainFunction = scope.lookupFunction("main", 0);
-        return mainFunction.invoke(new ArrayList<>());
+        return scope.lookupFunction("main", 0).invoke(Collections.<Environment.PlcObject>emptyList());
     }
-
 
     @Override
     public Environment.PlcObject visit(Ast.Field ast) {
@@ -51,14 +50,11 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
                 methodScope.defineVariable(ast.getParameters().get(i), args.get(i));
             }
             try {
-                scope = methodScope;
                 for (Ast.Stmt stmt : ast.getStatements()) {
-                    visit(stmt);
+                    visit(stmt);  // Use the existing scope to ensure variables like 'y' are updated correctly.
                 }
             } catch (Return returnValue) {
                 return returnValue.value;
-            } finally {
-                scope = scope.getParent();
             }
             return Environment.NIL;
         });
@@ -109,12 +105,24 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
     @Override
     public Environment.PlcObject visit(Ast.Stmt.If ast) {
         if (requireType(Boolean.class, visit(ast.getCondition()))) {
-            for (Ast.Stmt stmt : ast.getThenStatements()) {
-                visit(stmt);
+            Scope ifScope = new Scope(scope); // Create a new scope for the 'if' block
+            try {
+                scope = ifScope;  // Enter the new scope
+                for (Ast.Stmt stmt : ast.getThenStatements()) {
+                    visit(stmt);
+                }
+            } finally {
+                scope = scope.getParent();  // Exit the scope after the block
             }
         } else {
-            for (Ast.Stmt stmt : ast.getElseStatements()) {
-                visit(stmt);
+            Scope elseScope = new Scope(scope); // Create a new scope for the 'else' block
+            try {
+                scope = elseScope;  // Enter the new scope
+                for (Ast.Stmt stmt : ast.getElseStatements()) {
+                    visit(stmt);
+                }
+            } finally {
+                scope = scope.getParent();  // Exit the scope after the block
             }
         }
         return Environment.NIL;
@@ -193,54 +201,41 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
                 if (left.getValue() instanceof String || right.getValue() instanceof String) {
                     return Environment.create(requireType(String.class, left) + requireType(String.class, right));
                 } else if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
-                    // Properly handle BigInteger addition
                     return Environment.create(requireType(BigInteger.class, left).add(requireType(BigInteger.class, right)));
-                } else if (left.getValue() instanceof BigDecimal || right.getValue() instanceof BigDecimal) {
-                    // Handle BigDecimal addition
-                    BigDecimal leftDecimal = (left.getValue() instanceof BigInteger)
-                            ? new BigDecimal((BigInteger) left.getValue())
-                            : requireType(BigDecimal.class, left);
-                    BigDecimal rightDecimal = (right.getValue() instanceof BigInteger)
-                            ? new BigDecimal((BigInteger) right.getValue())
-                            : requireType(BigDecimal.class, right);
-                    return Environment.create(leftDecimal.add(rightDecimal));
+                } else if (left.getValue() instanceof BigDecimal && right.getValue() instanceof BigDecimal) {
+                    return Environment.create(requireType(BigDecimal.class, left).add(requireType(BigDecimal.class, right)));
+                } else {
+                    throw new RuntimeException("Numerical/string types must match");
                 }
-                break;
             case "-":
                 if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
                     return Environment.create(requireType(BigInteger.class, left).subtract(requireType(BigInteger.class, right)));
+                } else if (left.getValue() instanceof BigDecimal && right.getValue() instanceof BigDecimal) {
+                    return Environment.create(requireType(BigDecimal.class, left).subtract(requireType(BigDecimal.class, right)));
                 } else {
-                    BigDecimal leftDecimal = (left.getValue() instanceof BigInteger)
-                            ? new BigDecimal((BigInteger) left.getValue())
-                            : requireType(BigDecimal.class, left);
-                    BigDecimal rightDecimal = (right.getValue() instanceof BigInteger)
-                            ? new BigDecimal((BigInteger) right.getValue())
-                            : requireType(BigDecimal.class, right);
-                    return Environment.create(leftDecimal.subtract(rightDecimal));
+                    throw new RuntimeException("Numerical types must match");
                 }
             case "*":
                 if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
                     return Environment.create(requireType(BigInteger.class, left).multiply(requireType(BigInteger.class, right)));
+                } else if (left.getValue() instanceof BigDecimal && right.getValue() instanceof BigDecimal) {
+                    return Environment.create(requireType(BigDecimal.class, left).multiply(requireType(BigDecimal.class, right)));
                 } else {
-                    BigDecimal leftDecimal = (left.getValue() instanceof BigInteger)
-                            ? new BigDecimal((BigInteger) left.getValue())
-                            : requireType(BigDecimal.class, left);
-                    BigDecimal rightDecimal = (right.getValue() instanceof BigInteger)
-                            ? new BigDecimal((BigInteger) right.getValue())
-                            : requireType(BigDecimal.class, right);
-                    return Environment.create(leftDecimal.multiply(rightDecimal));
+                    throw new RuntimeException("Numerical types must match");
                 }
             case "/":
-                BigDecimal leftDecimal = (left.getValue() instanceof BigInteger)
-                        ? new BigDecimal((BigInteger) left.getValue())
-                        : requireType(BigDecimal.class, left);
-                BigDecimal rightDecimal = (right.getValue() instanceof BigInteger)
-                        ? new BigDecimal((BigInteger) right.getValue())
-                        : requireType(BigDecimal.class, right);
-                if (rightDecimal.compareTo(BigDecimal.ZERO) == 0) {
-                    throw new ArithmeticException("Division by zero");
+                if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
+                    return Environment.create(requireType(BigInteger.class, left).divide(requireType(BigInteger.class, right)));
+                } else if (left.getValue() instanceof BigDecimal && right.getValue() instanceof BigDecimal) {
+                    BigDecimal leftDecimal = requireType(BigDecimal.class, left);
+                    BigDecimal rightDecimal = requireType(BigDecimal.class, right);
+                    if (rightDecimal.compareTo(BigDecimal.ZERO) == 0) {
+                        throw new ArithmeticException("Division by zero");
+                    }
+                    return Environment.create(leftDecimal.divide(rightDecimal, 10, RoundingMode.HALF_EVEN).setScale(1, RoundingMode.HALF_EVEN));
+                } else {
+                    throw new RuntimeException("Numerical types must match");
                 }
-                return Environment.create(leftDecimal.divide(rightDecimal, 10, RoundingMode.HALF_UP).setScale(1, RoundingMode.HALF_UP));
             case "OR":
             case "||":
                 // Short-circuit: If left is true, return true without evaluating right
@@ -266,25 +261,24 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
             default:
                 throw new UnsupportedOperationException("Unsupported operator: " + ast.getOperator());
         }
-        throw new UnsupportedOperationException("Invalid types for operator: " + ast.getOperator());
     }
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Access ast) {
         if (ast.getReceiver().isPresent()) {
-            // Retrieve the value from the receiver's field
             Environment.PlcObject receiver = visit(ast.getReceiver().get());
             return receiver.getField(ast.getName()).getValue();
         } else {
-            // Retrieve the variable from the current scope
             Environment.Variable variable = scope.lookupVariable(ast.getName());
             if (variable != null) {
-                return variable.getValue();  // Ensure variable exists and return its value
+                return variable.getValue();
             } else {
                 throw new RuntimeException("Variable '" + ast.getName() + "' is not defined.");
             }
         }
     }
+
+
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Function ast) {

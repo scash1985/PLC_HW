@@ -19,6 +19,12 @@ import java.util.stream.Stream;
 
 final class InterpreterTests {
 
+    @ParameterizedTest
+    @MethodSource
+    void testSource(String test, Ast.Source ast, Object expected) {
+        test(ast, expected, new Scope(null));
+    }
+
     private static Stream<Arguments> testSource() {
         return Stream.of(
                 Arguments.of("Main", new Ast.Source(
@@ -35,9 +41,20 @@ final class InterpreterTests {
                         Arrays.asList(new Ast.Method("main", Arrays.asList(), Arrays.asList(
                                 new Ast.Stmt.Expression(new Ast.Expr.Binary("+",
                                         new Ast.Expr.Access(Optional.empty(), "x"),
-                                        new Ast.Expr.Access(Optional.empty(), "y")))
+                                        new Ast.Expr.Access(Optional.empty(), "y")                                ))
                         )))
-                ), Environment.NIL.getValue())
+                ), Environment.NIL.getValue()),
+                Arguments.of("Field Addition", new Ast.Source(
+                        Arrays.asList(
+                                new Ast.Field("x", Optional.of(new Ast.Expr.Literal(BigInteger.ONE))),
+                                new Ast.Field("y", Optional.of(new Ast.Expr.Literal(BigInteger.TEN)))
+                        ),
+                        Arrays.asList(new Ast.Method("main", Arrays.asList(), Arrays.asList(
+                                new Ast.Stmt.Return(new Ast.Expr.Binary("+",
+                                        new Ast.Expr.Access(Optional.empty(), "x"),
+                                        new Ast.Expr.Access(Optional.empty(), "y")                                ))
+                        )))
+                ), BigInteger.valueOf(11))
         );
     }
 
@@ -124,7 +141,7 @@ final class InterpreterTests {
         Scope scope = new Scope(null);
         scope.defineVariable("variable", Environment.create("variable"));
         test(new Ast.Stmt.Assignment(
-                new Ast.Expr.Access(Optional.empty(), "variable"),
+                new Ast.Expr.Access(Optional.empty(),"variable"),
                 new Ast.Expr.Literal(BigInteger.ONE)
         ), Environment.NIL.getValue(), scope);
         Assertions.assertEquals(BigInteger.ONE, scope.lookupVariable("variable").getValue().getValue());
@@ -137,7 +154,7 @@ final class InterpreterTests {
         object.defineVariable("field", Environment.create("object.field"));
         scope.defineVariable("object", new Environment.PlcObject(object, "object"));
         test(new Ast.Stmt.Assignment(
-                new Ast.Expr.Access(Optional.of(new Ast.Expr.Access(Optional.empty(), "object")), "field"),
+                new Ast.Expr.Access(Optional.of(new Ast.Expr.Access(Optional.empty(), "object")),"field"),
                 new Ast.Expr.Literal(BigInteger.ONE)
         ), Environment.NIL.getValue(), scope);
         Assertions.assertEquals(BigInteger.ONE, object.lookupVariable("field").getValue().getValue());
@@ -157,7 +174,7 @@ final class InterpreterTests {
                 Arguments.of("True Condition",
                         new Ast.Stmt.If(
                                 new Ast.Expr.Literal(true),
-                                Arrays.asList(new Ast.Stmt.Assignment(new Ast.Expr.Access(Optional.empty(), "num"), new Ast.Expr.Literal(BigInteger.ONE))),
+                                Arrays.asList(new Ast.Stmt.Assignment(new Ast.Expr.Access(Optional.empty(),"num"), new Ast.Expr.Literal(BigInteger.ONE))),
                                 Arrays.asList()
                         ),
                         BigInteger.ONE
@@ -166,7 +183,7 @@ final class InterpreterTests {
                         new Ast.Stmt.If(
                                 new Ast.Expr.Literal(false),
                                 Arrays.asList(),
-                                Arrays.asList(new Ast.Stmt.Assignment(new Ast.Expr.Access(Optional.empty(), "num"), new Ast.Expr.Literal(BigInteger.TEN)))
+                                Arrays.asList(new Ast.Stmt.Assignment(new Ast.Expr.Access(Optional.empty(),"num"), new Ast.Expr.Literal(BigInteger.TEN)))
                         ),
                         BigInteger.TEN
                 )
@@ -183,10 +200,10 @@ final class InterpreterTests {
         test(new Ast.Stmt.For("num",
                 new Ast.Expr.Access(Optional.empty(), "list"),
                 Arrays.asList(new Ast.Stmt.Assignment(
-                        new Ast.Expr.Access(Optional.empty(), "sum"),
+                        new Ast.Expr.Access(Optional.empty(),"sum"),
                         new Ast.Expr.Binary("+",
-                                new Ast.Expr.Access(Optional.empty(), "sum"),
-                                new Ast.Expr.Access(Optional.empty(), "num")
+                                new Ast.Expr.Access(Optional.empty(),"sum"),
+                                new Ast.Expr.Access(Optional.empty(),"num")
                         )
                 ))
         ), Environment.NIL.getValue(), scope);
@@ -199,17 +216,17 @@ final class InterpreterTests {
         scope.defineVariable("num", Environment.create(BigInteger.ZERO));
         test(new Ast.Stmt.While(
                 new Ast.Expr.Binary("<",
-                        new Ast.Expr.Access(Optional.empty(), "num"),
+                        new Ast.Expr.Access(Optional.empty(),"num"),
                         new Ast.Expr.Literal(BigInteger.TEN)
                 ),
                 Arrays.asList(new Ast.Stmt.Assignment(
-                        new Ast.Expr.Access(Optional.empty(), "num"),
+                        new Ast.Expr.Access(Optional.empty(),"num"),
                         new Ast.Expr.Binary("+",
-                                new Ast.Expr.Access(Optional.empty(), "num"),
+                                new Ast.Expr.Access(Optional.empty(),"num"),
                                 new Ast.Expr.Literal(BigInteger.ONE)
                         )
                 ))
-        ), Environment.NIL.getValue(), scope);
+        ),Environment.NIL.getValue(), scope);
         Assertions.assertEquals(BigInteger.TEN, scope.lookupVariable("num").getValue().getValue());
     }
 
@@ -312,6 +329,15 @@ final class InterpreterTests {
                                 new Ast.Expr.Literal(new BigDecimal("3.4"))
                         ),
                         new BigDecimal("0.4")
+                ),
+
+                // THIS TEST IS INTENDED TO FAIL AND THROW A RUNTIME EXCEPTION, I DON't KNOW HOW TO SET UP EXCEPTION TEST CASES
+                Arguments.of("Integer Decimal Subtraction",
+                        new Ast.Expr.Binary("-",
+                                new Ast.Expr.Literal(BigInteger.ONE),
+                                new Ast.Expr.Literal(new BigDecimal("1.0"))
+                        ),
+                        new BigDecimal("0.0")
                 )
         );
     }
@@ -369,26 +395,15 @@ final class InterpreterTests {
     }
 
     @Test
-    void testFieldAddition() {
-        Scope scope = new Scope(null);
-        scope.defineVariable("x", Environment.create(BigInteger.valueOf(1)));
-        scope.defineVariable("y", Environment.create(BigInteger.valueOf(10)));
-        test(new Ast.Method("main", Arrays.asList(), Arrays.asList(
-                new Ast.Stmt.Return(new Ast.Expr.Binary("+",
-                        new Ast.Expr.Access(Optional.empty(), "x"),
-                        new Ast.Expr.Access(Optional.empty(), "y")
-                ))
-        )), BigInteger.valueOf(11), scope);
-    }
-
-    @Test
     void testIfTrueConditionWithLog() {
         PrintStream sysout = System.out;
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         System.setOut(new PrintStream(out));
+
         try {
             Scope scope = new Scope(null);
             scope.defineFunction("log", 1, args -> Environment.create(args.get(0).getValue()));
+
             test(new Ast.Stmt.If(
                     new Ast.Expr.Literal(true),
                     Arrays.asList(new Ast.Stmt.Expression(new Ast.Expr.Function(Optional.empty(), "log", Arrays.asList(new Ast.Expr.Literal(BigInteger.valueOf(1)))))),
@@ -400,6 +415,98 @@ final class InterpreterTests {
         }
     }
 
+    @Test
+    void testScope() {
+        PrintStream sysout = System.out;
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(out));
+
+        try {
+            Scope scope = new Scope(null);
+            scope.defineFunction("log", 1, args -> {
+                System.out.println(args.get(0).getValue());
+                return Environment.NIL;
+            });
+
+            test(new Ast.Source(
+                    Arrays.asList(),  // No fields
+                    Arrays.asList(new Ast.Method("main", Arrays.asList(), Arrays.asList(
+                            new Ast.Stmt.Declaration("x", Optional.of(new Ast.Expr.Literal(BigInteger.ONE))),
+                            new Ast.Stmt.Declaration("y", Optional.of(new Ast.Expr.Literal(BigInteger.valueOf(2)))),
+                            new Ast.Stmt.Expression(new Ast.Expr.Function(Optional.empty(), "log", Arrays.asList(new Ast.Expr.Access(Optional.empty(), "x")))),
+                            new Ast.Stmt.Expression(new Ast.Expr.Function(Optional.empty(), "log", Arrays.asList(new Ast.Expr.Access(Optional.empty(), "y")))),
+                            new Ast.Stmt.If(
+                                    new Ast.Expr.Literal(true),
+                                    Arrays.asList(
+                                            new Ast.Stmt.Declaration("x", Optional.of(new Ast.Expr.Literal(BigInteger.valueOf(3)))),
+                                            new Ast.Stmt.Assignment(new Ast.Expr.Access(Optional.empty(), "y"), new Ast.Expr.Literal(BigInteger.valueOf(4))),
+                                            new Ast.Stmt.Expression(new Ast.Expr.Function(Optional.empty(), "log", Arrays.asList(new Ast.Expr.Access(Optional.empty(), "x")))),
+                                            new Ast.Stmt.Expression(new Ast.Expr.Function(Optional.empty(), "log", Arrays.asList(new Ast.Expr.Access(Optional.empty(), "y"))))
+                                    ),
+                                    Arrays.asList()
+                            ),
+                            new Ast.Stmt.Expression(new Ast.Expr.Function(Optional.empty(), "log", Arrays.asList(new Ast.Expr.Access(Optional.empty(), "x")))),
+                            new Ast.Stmt.Expression(new Ast.Expr.Function(Optional.empty(), "log", Arrays.asList(new Ast.Expr.Access(Optional.empty(), "y"))))
+                    )))
+            ), Environment.NIL.getValue(), scope);
+
+            // Expected output: x=1, y=2, x=3 (inner scope), y=4 (modified), x=1 (outer scope), y=4
+            String expectedOutput = String.join(System.lineSeparator(),
+                    "1", // Outer x
+                    "2", // Outer y
+                    "3", // Inner x (shadowed)
+                    "4", // Inner y (modified)
+                    "1", // Outer x (unmodified)
+                    "4"  // Outer y (modified)
+            ) + System.lineSeparator();
+
+            Assertions.assertEquals(expectedOutput, out.toString());
+        } finally {
+            System.setOut(sysout);
+        }
+    }
+
+    @Test
+    void testScopeMethod() {
+        // Define the AST for the given scope example
+        Ast.Source source = new Ast.Source(
+                // Fields: x = 1, y = 2, z = 3
+                Arrays.asList(
+                        new Ast.Field("x", Optional.of(new Ast.Expr.Literal(BigInteger.ONE))),
+                        new Ast.Field("y", Optional.of(new Ast.Expr.Literal(BigInteger.valueOf(2)))),
+                        new Ast.Field("z", Optional.of(new Ast.Expr.Literal(BigInteger.valueOf(3))))
+                ),
+                // Methods: f(z) and main()
+                Arrays.asList(
+                        new Ast.Method("f", Arrays.asList("z"), Arrays.asList(
+                                new Ast.Stmt.Return(
+                                        new Ast.Expr.Binary("+",
+                                                new Ast.Expr.Binary("+",
+                                                        new Ast.Expr.Access(Optional.empty(), "x"),
+                                                        new Ast.Expr.Access(Optional.empty(), "y")
+                                                ),
+                                                new Ast.Expr.Access(Optional.empty(), "z")
+                                        )
+                                )
+                        )),
+                        new Ast.Method("main", Arrays.asList(), Arrays.asList(
+                                // LET y = 4;
+                                new Ast.Stmt.Declaration("y", Optional.of(new Ast.Expr.Literal(BigInteger.valueOf(4)))),
+                                // RETURN f(5);
+                                new Ast.Stmt.Return(
+                                        new Ast.Expr.Function(Optional.empty(), "f", Arrays.asList(new Ast.Expr.Literal(BigInteger.valueOf(5))))
+                                )
+                        ))
+                )
+        );
+
+        // The expected result for main() calling f(5): x (1) + y (2) + z (5) = 8
+        BigInteger expected = BigInteger.valueOf(8);
+
+        // Test the source (calls the main method)
+        test(source, expected, new Scope(null));
+    }
+
     private static Scope test(Ast ast, Object expected, Scope scope) {
         Interpreter interpreter = new Interpreter(scope);
         if (expected != null) {
@@ -409,5 +516,5 @@ final class InterpreterTests {
         }
         return interpreter.getScope();
     }
-}
 
+}

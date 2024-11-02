@@ -57,26 +57,32 @@ public final class Analyzer implements Ast.Visitor<Void> {
         for (String typeName : ast.getParameterTypeNames()) {
             parameterTypes.add(Environment.getType(typeName));
         }
+
         // Get the return type of the method
         Environment.Type returnType = ast.getReturnTypeName().isPresent()
                 ? Environment.getType(ast.getReturnTypeName().get())
                 : Environment.Type.ANY;
 
-        // Define the method in the current scope
+        // Define the method in the current scope with its return type
         Environment.Function methodFunction = scope.defineFunction(
                 ast.getName(), ast.getName(), parameterTypes, returnType, args -> Environment.NIL
         );
         ast.setFunction(methodFunction);
+
         // Enter a new scope for the method body
         scope = new Scope(scope);
+
+        // Define parameters as variables in the new scope
         for (int i = 0; i < ast.getParameters().size(); i++) {
             scope.defineVariable(ast.getParameters().get(i), ast.getParameters().get(i), parameterTypes.get(i), Environment.NIL);
         }
+
         // Visit each statement in the method body
         for (Ast.Stmt stmt : ast.getStatements()) {
             visit(stmt);
         }
-        // Exit the scope
+
+        // Exit the scope after processing the method
         scope = scope.getParent();
         return null;
     }
@@ -85,14 +91,25 @@ public final class Analyzer implements Ast.Visitor<Void> {
     public Void visit(Ast.Stmt.Expression ast) {
         // Visit the expression to ensure it's valid
         visit(ast.getExpression());
+
         // Get the type of the expression
         Environment.Type exprType = ast.getExpression().getType();
+
+        // Allow the expression to evaluate to NIL if it is a valid function like `print`
+        if (exprType.equals(Environment.Type.NIL) && ast.getExpression() instanceof Ast.Expr.Function) {
+            Ast.Expr.Function funcExpr = (Ast.Expr.Function) ast.getExpression();
+            if (funcExpr.getFunction().getReturnType().equals(Environment.Type.NIL)) {
+                return null; // It's okay for functions like `print` to return NIL
+            }
+        }
+
         // Check if the expression is valid in the context
         if (exprType.equals(Environment.Type.NIL)) {
             throw new RuntimeException("Expression must not evaluate to NIL.");
         }
         return null;
     }
+
 
     @Override
     public Void visit(Ast.Stmt.Declaration ast) {
@@ -132,22 +149,100 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.If ast) {
-        throw new UnsupportedOperationException();  // TODO
+        // Visit the condition expression
+        visit(ast.getCondition());
+
+        // Ensure the condition evaluates to a non-NIL BOOLEAN type
+        if (ast.getCondition().getType().equals(Environment.Type.NIL)) {
+            throw new RuntimeException("Condition expression in the IF statement must not evaluate to NIL.");
+        }
+
+        if (!ast.getCondition().getType().equals(Environment.Type.BOOLEAN)) {
+            throw new RuntimeException("Condition of if statement must be of type BOOLEAN.");
+        }
+
+        // Check if both 'then' and 'else' branches are empty
+        if (ast.getThenStatements().isEmpty() && ast.getElseStatements().isEmpty()) {
+            throw new RuntimeException("If statement must have at least one statement in the 'then' or 'else' branch.");
+        }
+
+        // Enter a new scope for the 'then' branch and visit all statements
+        scope = new Scope(scope);
+        for (Ast.Stmt stmt : ast.getThenStatements()) {
+            visit(stmt);
+        }
+        scope = scope.getParent(); // Exit the 'then' scope
+
+        // Check and visit 'else' branch if present
+        if (!ast.getElseStatements().isEmpty()) {
+            scope = new Scope(scope);
+            for (Ast.Stmt stmt : ast.getElseStatements()) {
+                visit(stmt);
+            }
+            scope = scope.getParent(); // Exit the 'else' scope
+        }
+
+        return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.For ast) {
-        throw new UnsupportedOperationException();  // TODO
+        // Visit the iterable expression
+        visit(ast.getValue());
+
+        // Check if the value's type is assignable to ANY, as it could be any iterable type
+        if (!ast.getValue().getType().equals(Environment.Type.ANY)) {
+            throw new RuntimeException("The value of the for loop must be an iterable type.");
+        }
+
+        // Enter a new scope for the loop body
+        scope = new Scope(scope);
+
+        // Define the loop variable, assuming it can hold any type (e.g., generic iterable element)
+        scope.defineVariable(ast.getName(), ast.getName(), Environment.Type.ANY, Environment.NIL);
+
+        // Visit all statements within the loop body
+        for (Ast.Stmt stmt : ast.getStatements()) {
+            visit(stmt);
+        }
+
+        // Exit the loop scope
+        scope = scope.getParent();
+        return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.While ast) {
-        throw new UnsupportedOperationException();  // TODO
+        // Visit the condition expression
+        visit(ast.getCondition());
+        // Ensure the condition evaluates to a boolean type
+        if (!ast.getCondition().getType().equals(Environment.Type.BOOLEAN)) {
+            throw new RuntimeException("Condition of while loop must be of type BOOLEAN.");
+        }
+        // Enter a new scope for the loop body
+        scope = new Scope(scope);
+        for (Ast.Stmt stmt : ast.getStatements()) {
+            visit(stmt);
+        }
+        // Exit the loop scope
+        scope = scope.getParent();
+        return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.Return ast) {
-        throw new UnsupportedOperationException();  // TODO
+        // Ensure there is a method context (method should be set when visiting the method)
+        if (method == null || method.getFunction() == null) {
+            throw new RuntimeException("Return statement not in a method.");
+        }
+
+        // Visit the return value expression
+        visit(ast.getValue());
+
+        // Check if the type of the return value matches the method's return type
+        requireAssignable(method.getFunction().getReturnType(), ast.getValue().getType());
+
+        return null;
     }
 
     @Override
@@ -160,6 +255,10 @@ public final class Analyzer implements Ast.Visitor<Void> {
         } else if (literal instanceof String) {
             ast.setType(Environment.Type.STRING);
         } else if (literal instanceof BigInteger) {
+            BigInteger value = (BigInteger) literal;
+            if (value.compareTo(BigInteger.valueOf(Integer.MIN_VALUE)) < 0 || value.compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) > 0) {
+                throw new RuntimeException("Integer literal is out of range.");
+            }
             ast.setType(Environment.Type.INTEGER);
         } else if (literal instanceof BigDecimal) {
             ast.setType(Environment.Type.DECIMAL);
@@ -169,20 +268,26 @@ public final class Analyzer implements Ast.Visitor<Void> {
         return null;
     }
 
+
     @Override
     public Void visit(Ast.Expr.Group ast) {
-        throw new UnsupportedOperationException();  // TODO
+        // Visit the inner expression
+        visit(ast.getExpression());
+        // Set the type of the group to match the type of the inner expression
+        ast.setType(ast.getExpression().getType());
+        return null;
     }
-
 
     @Override
     public Void visit(Ast.Expr.Binary ast) {
         // Visit the left and right expressions
         visit(ast.getLeft());
         visit(ast.getRight());
+
         // Ensure the two sides are assignable
         Environment.Type leftType = ast.getLeft().getType();
         Environment.Type rightType = ast.getRight().getType();
+
         // Check the operator and enforce type rules
         switch (ast.getOperator()) {
             case "==":
@@ -200,28 +305,100 @@ public final class Analyzer implements Ast.Visitor<Void> {
                 ast.setType(Environment.Type.BOOLEAN);
                 break;
             case "+":
+                // Handle string concatenation
+                if (leftType.equals(Environment.Type.STRING) || rightType.equals(Environment.Type.STRING)) {
+                    ast.setType(Environment.Type.STRING);
+                } else if (leftType.equals(Environment.Type.INTEGER) && rightType.equals(Environment.Type.INTEGER)) {
+                    ast.setType(Environment.Type.INTEGER);
+                } else if (leftType.equals(Environment.Type.DECIMAL) && rightType.equals(Environment.Type.DECIMAL)) {
+                    ast.setType(Environment.Type.DECIMAL);
+                } else if ((leftType.equals(Environment.Type.INTEGER) && rightType.equals(Environment.Type.DECIMAL)) ||
+                        (leftType.equals(Environment.Type.DECIMAL) && rightType.equals(Environment.Type.INTEGER))) {
+                    throw new RuntimeException("Mixed types of INTEGER and DECIMAL are not allowed for binary operations.");
+                } else {
+                    throw new RuntimeException("Operands must be numeric types or one must be a STRING for concatenation.");
+                }
+                break;
             case "-":
             case "*":
             case "/":
-                if (!leftType.equals(Environment.Type.INTEGER) && !leftType.equals(Environment.Type.DECIMAL)) {
+                if (leftType.equals(Environment.Type.INTEGER) && rightType.equals(Environment.Type.INTEGER)) {
+                    ast.setType(Environment.Type.INTEGER);
+                } else if (leftType.equals(Environment.Type.DECIMAL) && rightType.equals(Environment.Type.DECIMAL)) {
+                    ast.setType(Environment.Type.DECIMAL);
+                } else {
                     throw new RuntimeException("Operands must be numeric types.");
                 }
-                ast.setType(leftType);  // Resulting type is the same as the left operand's type
+                break;
+            case "AND":
+            case "OR":
+                if (!leftType.equals(Environment.Type.BOOLEAN) || !rightType.equals(Environment.Type.BOOLEAN)) {
+                    throw new RuntimeException("Operands of logical operators must be of type BOOLEAN.");
+                }
+                ast.setType(Environment.Type.BOOLEAN);
                 break;
             default:
                 throw new RuntimeException("Unknown operator: " + ast.getOperator());
         }
+
         return null;
     }
 
     @Override
     public Void visit(Ast.Expr.Access ast) {
-        throw new UnsupportedOperationException();  // TODO
+        if (ast.getReceiver().isPresent()) {
+            visit(ast.getReceiver().get());
+            Environment.Variable variable = ast.getReceiver().get().getType().getField(ast.getName());
+            if (variable == null) {
+                throw new RuntimeException("Field " + ast.getName() + " is not defined.");
+            }
+            ast.setVariable(variable);
+            // Ensure the type can be accessed through the variable
+        } else {
+            Environment.Variable variable = scope.lookupVariable(ast.getName());
+            if (variable == null) {
+                throw new RuntimeException("Variable " + ast.getName() + " is not defined.");
+            }
+            ast.setVariable(variable);
+            // Ensure the type can be accessed through the variable
+        }
+        return null;
     }
 
     @Override
     public Void visit(Ast.Expr.Function ast) {
-        throw new UnsupportedOperationException();  // TODO
+        // Visit all argument expressions to ensure they are valid
+        for (Ast.Expr arg : ast.getArguments()) {
+            visit(arg);
+        }
+
+        Environment.Function function;
+
+        if (ast.getReceiver().isPresent()) {
+            // If there's a receiver, check its type for the method
+            visit(ast.getReceiver().get());
+            Environment.Type receiverType = ast.getReceiver().get().getType();
+            function = receiverType.getMethod(ast.getName(), ast.getArguments().size());
+            if (function == null) {
+                throw new RuntimeException("The method " + ast.getName() + "/" + ast.getArguments().size() + " is not defined in this scope.");
+            }
+        } else {
+            // Lookup the function in the current scope using its name and argument count
+            function = scope.lookupFunction(ast.getName(), ast.getArguments().size());
+            if (function == null) {
+                throw new RuntimeException("The function " + ast.getName() + "/" + ast.getArguments().size() + " is not defined in this scope.");
+            }
+        }
+
+        // Verify that the argument types match the function's parameter types
+        for (int i = 0; i < ast.getArguments().size(); i++) {
+            requireAssignable(function.getParameterTypes().get(i), ast.getArguments().get(i).getType());
+        }
+
+        // Set the function in the AST node
+        ast.setFunction(function);
+
+        return null;
     }
 
     public static void requireAssignable(Environment.Type target, Environment.Type type) {

@@ -329,15 +329,50 @@ final class InterpreterTests {
                                 new Ast.Expr.Literal(new BigDecimal("3.4"))
                         ),
                         new BigDecimal("0.4")
+//                ),
+//
+//                // THIS TEST IS INTENDED TO FAIL AND THROW A RUNTIME EXCEPTION, I DON't KNOW HOW TO SET UP EXCEPTION TEST CASES
+//                Arguments.of("Integer Decimal Subtraction",
+//                        new Ast.Expr.Binary("-",
+//                                new Ast.Expr.Literal(BigInteger.ONE),
+//                                new Ast.Expr.Literal(new BigDecimal("1.0"))
+//                        ),
+//                        new BigDecimal("0.0")
                 ),
-
-                // THIS TEST IS INTENDED TO FAIL AND THROW A RUNTIME EXCEPTION, I DON't KNOW HOW TO SET UP EXCEPTION TEST CASES
-                Arguments.of("Integer Decimal Subtraction",
-                        new Ast.Expr.Binary("-",
+                Arguments.of("String Comparison (Unsupported)",
+                        new Ast.Expr.Binary(">",
+                                new Ast.Expr.Literal("abc"),
+                                new Ast.Expr.Literal("abd")
+                        ),
+                        new UnsupportedOperationException("Unsupported operator: > for strings")
+                ),
+                Arguments.of("Mixed Comparables (Unsupported)",
+                        new Ast.Expr.Binary("<=",
                                 new Ast.Expr.Literal(BigInteger.ONE),
                                 new Ast.Expr.Literal(new BigDecimal("1.0"))
                         ),
-                        new BigDecimal("0.0")
+                        new UnsupportedOperationException("Unsupported operator: <= for different types.")
+                ),
+                Arguments.of("Not Equal (Unsupported)",
+                        new Ast.Expr.Binary("!=",
+                                new Ast.Expr.Literal(BigInteger.ONE),
+                                new Ast.Expr.Literal(BigInteger.TEN)
+                        ),
+                        new UnsupportedOperationException("Unsupported operator: !=")
+                ),
+                Arguments.of("Distinct Types Equality (Unsupported)",
+                        new Ast.Expr.Binary("!=",
+                                new Ast.Expr.Literal(BigInteger.ONE),
+                                new Ast.Expr.Literal("1")
+                        ),
+                        new UnsupportedOperationException("Unsupported operator: !=")
+                ),
+                Arguments.of("Divide By Zero (Exception)",
+                        new Ast.Expr.Binary("/",
+                                new Ast.Expr.Literal(BigInteger.ONE),
+                                new Ast.Expr.Literal(BigInteger.ZERO)
+                        ),
+                        new ArithmeticException("Division by zero")
                 )
         );
     }
@@ -402,7 +437,10 @@ final class InterpreterTests {
 
         try {
             Scope scope = new Scope(null);
-            scope.defineFunction("log", 1, args -> Environment.create(args.get(0).getValue()));
+            scope.defineFunction("log", 1, args -> {
+                System.out.println(args.get(0).getValue());
+                return Environment.NIL;
+            });
 
             test(new Ast.Stmt.If(
                     new Ast.Expr.Literal(true),

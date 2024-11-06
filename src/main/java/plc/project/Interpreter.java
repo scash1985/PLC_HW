@@ -330,8 +330,6 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
         }
     }
 
-
-
     @Override
     public Environment.PlcObject visit(Ast.Expr.Function ast) {
         List<Environment.PlcObject> arguments = new ArrayList<>();

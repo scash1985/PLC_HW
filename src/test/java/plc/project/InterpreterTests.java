@@ -425,6 +425,17 @@ final class InterpreterTests {
                 Arguments.of("Print",
                         new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(new Ast.Expr.Literal("Hello, World!"))),
                         Environment.NIL.getValue()
+                ),
+                Arguments.of("Execution Order Test",
+                        new Ast.Expr.Function(
+                                Optional.of(new Ast.Expr.Access(Optional.empty(), "object")),
+                                "method",
+                                Arrays.asList(
+                                        new Ast.Expr.Function(Optional.empty(), "log", Arrays.asList(new Ast.Expr.Literal(1))),
+                                        new Ast.Expr.Function(Optional.empty(), "log", Arrays.asList(new Ast.Expr.Literal(5)))
+                                )
+                        ),
+                        Environment.NIL.getValue()
                 )
         );
     }
@@ -544,6 +555,7 @@ final class InterpreterTests {
         // Test the source (calls the main method)
         test(source, expected, new Scope(null));
     }
+
 
     private static Scope test(Ast ast, Object expected, Scope scope) {
         Interpreter interpreter = new Interpreter(scope);

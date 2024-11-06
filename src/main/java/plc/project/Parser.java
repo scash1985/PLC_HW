@@ -90,6 +90,7 @@ public final class Parser {
             int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
             throw new ParseException("Expected '(' after method name.", errorIndex);
         }
+
         List<String> parameters = new ArrayList<>();
         if (peek(Token.Type.IDENTIFIER)) {
             do {
@@ -97,26 +98,33 @@ public final class Parser {
                     int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
                     throw new ParseException("Expected parameter name.", errorIndex);
                 }
-                String paramName = tokens.get(-1).getLiteral();
-                parameters.add(paramName);
+                parameters.add(tokens.get(-1).getLiteral());
             } while (match(","));
         }
+
         if (!match(")")) {
             int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
             throw new ParseException("Expected ')' after parameter list.", errorIndex);
         }
+
+        // Confirm 'DO' after the method signature
         if (!match("DO")) {
             int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
             throw new ParseException("Expected 'DO' after method signature.", errorIndex);
         }
+
+        // Parse statements until 'END' is encountered
         List<Ast.Stmt> statements = new ArrayList<>();
-        while (peek("LET") || peek("IF") || peek("FOR") || peek("WHILE") || peek("RETURN") || peek(Token.Type.IDENTIFIER)) {
+        while (!peek("END")) {
             statements.add(parseStatement());
         }
+
+        // Confirm 'END' at the end of the method body
         if (!match("END")) {
             int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
-            throw new ParseException("Expected 'END' after method body.", errorIndex + 1); // Adding +1 to match the expected index
+            throw new ParseException("Expected 'END' after method body.", errorIndex);
         }
+
         return new Ast.Method(name, parameters, statements);
     }
 
@@ -189,9 +197,11 @@ public final class Parser {
             // Check if the token is 'THEN' instead of 'DO' to match the test case
             String actual = tokens.has(0) ? tokens.get(0).getLiteral() : "EOF";
             if ("THEN".equals(actual)) {
-                throw new ParseException("Expected 'DO', but received 'THEN'.", tokens.get(0).getIndex());
+                int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
+                throw new ParseException("Expected 'DO', but received 'THEN'.", errorIndex);
             } else {
-                throw new ParseException("Expected 'DO' after 'IF' condition.", tokens.get(-1).getIndex());
+                int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
+                throw new ParseException("Expected 'DO' after 'IF' condition.", errorIndex);
             }
         }
         List<Ast.Stmt> thenStatements = new ArrayList<>();
@@ -378,9 +388,9 @@ public final class Parser {
         } else if (match("NIL")) {
             return new Ast.Expr.Literal(null);
         } else if (match(Token.Type.INTEGER)) {
-            return new Ast.Expr.Literal(BigInteger.valueOf(Integer.parseInt(tokens.get(-1).getLiteral())));
+            return new Ast.Expr.Literal(new BigInteger(tokens.get(-1).getLiteral()));
         } else if (match(Token.Type.DECIMAL)) {
-            return new Ast.Expr.Literal(BigDecimal.valueOf(Double.parseDouble(tokens.get(-1).getLiteral())));
+            return new Ast.Expr.Literal(new BigDecimal(tokens.get(-1).getLiteral()));
         } else if (match(Token.Type.CHARACTER)) {
             // Handle escape characters in string literals.
             String str = tokens.get(-1).getLiteral().substring(1, tokens.get(-1).getLiteral().length() - 1);
@@ -396,7 +406,7 @@ public final class Parser {
             String str = tokens.get(-1).getLiteral().substring(1, tokens.get(-1).getLiteral().length() - 1);
             str = str.replace("\\b", "\b").replace("\\n", "\n")
                     .replace("\\r", "\r").replace("\\t", "\t")
-                    .replace("\\'", "'").replace("\\", "\"")
+                    .replace("\\'", "'").replace("\\\"", "\"")
                     .replace("\\\\", "\\");
             return new Ast.Expr.Literal(str);
         } else if (match("(")) {

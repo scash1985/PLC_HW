@@ -52,37 +52,42 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Method ast) {
-        // Create a list of parameter types
+        this.method = ast;
+
         List<Environment.Type> parameterTypes = new ArrayList<>();
         for (String typeName : ast.getParameterTypeNames()) {
             parameterTypes.add(Environment.getType(typeName));
         }
 
-        // Get the return type of the method
         Environment.Type returnType = ast.getReturnTypeName().isPresent()
                 ? Environment.getType(ast.getReturnTypeName().get())
                 : Environment.Type.ANY;
 
-        // Define the method in the current scope with its return type
         Environment.Function methodFunction = scope.defineFunction(
                 ast.getName(), ast.getName(), parameterTypes, returnType, args -> Environment.NIL
         );
         ast.setFunction(methodFunction);
 
-        // Enter a new scope for the method body
         scope = new Scope(scope);
 
-        // Define parameters as variables in the new scope
         for (int i = 0; i < ast.getParameters().size(); i++) {
             scope.defineVariable(ast.getParameters().get(i), ast.getParameters().get(i), parameterTypes.get(i), Environment.NIL);
         }
 
-        // Visit each statement in the method body
         for (Ast.Stmt stmt : ast.getStatements()) {
             visit(stmt);
         }
 
-        // Exit the scope after processing the method
+        // Check for missing return type in main method
+        if (ast.getName().equals("main") && !ast.getReturnTypeName().isPresent()) {
+            for (Ast.Stmt stmt : ast.getStatements()) {
+                if (stmt instanceof Ast.Stmt.Return) {
+                    throw new RuntimeException("Missing integer return type for main");
+                }
+            }
+        }
+
+        this.method = null;
         scope = scope.getParent();
         return null;
     }
@@ -190,16 +195,16 @@ public final class Analyzer implements Ast.Visitor<Void> {
         // Visit the iterable expression
         visit(ast.getValue());
 
-        // Check if the value's type is assignable to ANY, as it could be any iterable type
-        if (!ast.getValue().getType().equals(Environment.Type.ANY)) {
-            throw new RuntimeException("The value of the for loop must be an iterable type.");
+        // Check if the value's type is assignable to an iterable type
+        if (!ast.getValue().getType().equals(Environment.Type.INTEGER_ITERABLE)) {
+            throw new RuntimeException("The value of the for loop must be an iterable type, such as INTEGER_ITERABLE.");
         }
 
         // Enter a new scope for the loop body
         scope = new Scope(scope);
 
-        // Define the loop variable, assuming it can hold any type (e.g., generic iterable element)
-        scope.defineVariable(ast.getName(), ast.getName(), Environment.Type.ANY, Environment.NIL);
+        // Define the loop variable with the element type of the iterable
+        scope.defineVariable(ast.getName(), ast.getName(), Environment.Type.INTEGER, Environment.NIL);
 
         // Visit all statements within the loop body
         for (Ast.Stmt stmt : ast.getStatements()) {
@@ -273,10 +278,17 @@ public final class Analyzer implements Ast.Visitor<Void> {
     public Void visit(Ast.Expr.Group ast) {
         // Visit the inner expression
         visit(ast.getExpression());
+
+        // Ensure the inner expression is valid (not NIL unless it's allowed)
+        if (ast.getExpression().getType().equals(Environment.Type.NIL)) {
+            throw new RuntimeException("Grouped expression must not evaluate to NIL.");
+        }
+
         // Set the type of the group to match the type of the inner expression
         ast.setType(ast.getExpression().getType());
         return null;
     }
+
 
     @Override
     public Void visit(Ast.Expr.Binary ast) {
@@ -413,5 +425,4 @@ public final class Analyzer implements Ast.Visitor<Void> {
         }
         throw new RuntimeException("Type " + type.getName() + " is not assignable to " + target.getName());
     }
-
 }

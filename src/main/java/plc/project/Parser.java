@@ -58,66 +58,110 @@ public final class Parser {
      * next tokens start a field, aka {@code LET}.
      */
     public Ast.Field parseField() throws ParseException {
+        // Match the 'LET' keyword
         match("LET");
         if (!match(Token.Type.IDENTIFIER)) {
-            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
-            throw new ParseException("Expected identifier after 'LET'.", errorIndex);
+            throw new ParseException("Expected identifier after 'LET'.", tokens.get(-1).getIndex());
         }
         String name = tokens.get(-1).getLiteral();
+
+        // Match the type if present (indicated by ':')
+        Optional<String> type = Optional.empty();
+        if (match(":")) {
+            if (!match(Token.Type.IDENTIFIER)) {
+                throw new ParseException("Expected type after ':'.", tokens.get(-1).getIndex());
+            }
+            type = Optional.of(tokens.get(-1).getLiteral());
+        }
+
+        // Match the optional value assignment ('=' expr)
         Optional<Ast.Expr> value = Optional.empty();
         if (match("=")) {
             value = Optional.of(parseExpression());
         }
+
+        // Ensure the field ends with a semicolon
         if (!match(";")) {
-            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
-            throw new ParseException("Expected semicolon after expression.", errorIndex);
+            throw new ParseException("Expected semicolon after field declaration.", tokens.get(-1).getIndex());
         }
-        return new Ast.Field(name, value);
+
+        // Return the field node with name, type, and optional value
+        return new Ast.Field(name, type.orElse("Any"), value);
     }
+
 
     /**
      * Parses the {@code method} rule. This method should only be called if the
      * next tokens start a method, aka {@code DEF}.
      */
     public Ast.Method parseMethod() throws ParseException {
+        // Match the 'DEF' keyword and the method name
         match("DEF");
         if (!match(Token.Type.IDENTIFIER)) {
-            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
-            throw new ParseException("Expected method name after 'DEF'.", errorIndex);
+            throw new ParseException("Expected method name after 'DEF'.", tokens.get(-1).getIndex());
         }
         String name = tokens.get(-1).getLiteral();
+
+        // Match the opening parenthesis '('
         if (!match("(")) {
-            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
-            throw new ParseException("Expected '(' after method name.", errorIndex);
+            throw new ParseException("Expected '(' after method name.", tokens.get(-1).getIndex());
         }
+
+        // Parse parameters (if any)
         List<String> parameters = new ArrayList<>();
+        List<String> parameterTypeNames = new ArrayList<>();
         if (peek(Token.Type.IDENTIFIER)) {
             do {
+                // Parameter name
                 if (!match(Token.Type.IDENTIFIER)) {
-                    int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
-                    throw new ParseException("Expected parameter name.", errorIndex);
+                    throw new ParseException("Expected parameter name in method signature.", tokens.get(-1).getIndex());
                 }
-                String paramName = tokens.get(-1).getLiteral();
-                parameters.add(paramName);
+                parameters.add(tokens.get(-1).getLiteral());
+
+                // Optional parameter type
+                if (match(":")) {
+                    if (!match(Token.Type.IDENTIFIER)) {
+                        throw new ParseException("Expected type name after ':'.", tokens.get(-1).getIndex());
+                    }
+                    parameterTypeNames.add(tokens.get(-1).getLiteral());
+                } else {
+                    parameterTypeNames.add("Any"); // Default to "Any" if no type is provided
+                }
             } while (match(","));
         }
+
+        // Match the closing parenthesis ')'
         if (!match(")")) {
-            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
-            throw new ParseException("Expected ')' after parameter list.", errorIndex);
+            throw new ParseException("Expected ')' after parameter list.", tokens.get(-1).getIndex());
         }
+
+        // Optionally match the return type (':' Type)
+        Optional<String> returnTypeName = Optional.empty();
+        if (match(":")) {
+            if (!match(Token.Type.IDENTIFIER)) {
+                throw new ParseException("Expected return type name after ':'.", tokens.get(-1).getIndex());
+            }
+            returnTypeName = Optional.of(tokens.get(-1).getLiteral());
+        }
+
+        // Ensure the 'DO' keyword is present after the method signature
         if (!match("DO")) {
-            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
-            throw new ParseException("Expected 'DO' after method signature.", errorIndex);
+            throw new ParseException("Expected 'DO' after method signature.", tokens.get(-1).getIndex());
         }
+
+        // Parse method body statements
         List<Ast.Stmt> statements = new ArrayList<>();
-        while (peek("LET") || peek("IF") || peek("FOR") || peek("WHILE") || peek("RETURN") || peek(Token.Type.IDENTIFIER)) {
+        while (!peek("END")) {
             statements.add(parseStatement());
         }
+
+        // Ensure the 'END' keyword is present
         if (!match("END")) {
-            int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
-            throw new ParseException("Expected 'END' after method body.", errorIndex + 1); // Adding +1 to match the expected index
+            throw new ParseException("Expected 'END' to close method body.", tokens.get(-1).getIndex());
         }
-        return new Ast.Method(name, parameters, statements);
+
+        // Return the parsed method AST node
+        return new Ast.Method(name, parameters, parameterTypeNames, returnTypeName, statements);
     }
 
     /**
@@ -166,16 +210,33 @@ public final class Parser {
             throw new ParseException("Expected identifier after 'LET'.", errorIndex);
         }
         String name = tokens.get(-1).getLiteral();
+
+        Optional<String> type = Optional.empty();
         Optional<Ast.Expr> value = Optional.empty();
+
+        // Match type if ":" is present
+        if (match(":")) {
+            if (!match(Token.Type.IDENTIFIER)) {
+                int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
+                throw new ParseException("Expected type identifier after ':'.", errorIndex);
+            }
+            type = Optional.of(tokens.get(-1).getLiteral());
+        }
+
+        // Match initializer expression if "=" is present
         if (match("=")) {
             value = Optional.of(parseExpression());
         }
+
+        // Ensure that each declaration statement ends with a semicolon
         if (!match(";")) {
             int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
             throw new ParseException("Expected ';' after declaration.", errorIndex);
         }
-        return new Ast.Stmt.Declaration(name, value);
+
+        return new Ast.Stmt.Declaration(name, type, value);
     }
+
 
     /**
      * Parses an if statement from the {@code statement} rule. This method
@@ -189,9 +250,11 @@ public final class Parser {
             // Check if the token is 'THEN' instead of 'DO' to match the test case
             String actual = tokens.has(0) ? tokens.get(0).getLiteral() : "EOF";
             if ("THEN".equals(actual)) {
-                throw new ParseException("Expected 'DO', but received 'THEN'.", tokens.get(0).getIndex());
+                int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
+                throw new ParseException("Expected 'DO', but received 'THEN'.", errorIndex);
             } else {
-                throw new ParseException("Expected 'DO' after 'IF' condition.", tokens.get(-1).getIndex());
+                int errorIndex = tokens.has(0) ? tokens.get(0).getIndex() : tokens.get(-1).getIndex() + tokens.get(-1).getLiteral().length();
+                throw new ParseException("Expected 'DO' after 'IF' condition.", errorIndex);
             }
         }
         List<Ast.Stmt> thenStatements = new ArrayList<>();
@@ -378,9 +441,9 @@ public final class Parser {
         } else if (match("NIL")) {
             return new Ast.Expr.Literal(null);
         } else if (match(Token.Type.INTEGER)) {
-            return new Ast.Expr.Literal(BigInteger.valueOf(Integer.parseInt(tokens.get(-1).getLiteral())));
+            return new Ast.Expr.Literal(new BigInteger(tokens.get(-1).getLiteral()));
         } else if (match(Token.Type.DECIMAL)) {
-            return new Ast.Expr.Literal(BigDecimal.valueOf(Double.parseDouble(tokens.get(-1).getLiteral())));
+            return new Ast.Expr.Literal(new BigDecimal(tokens.get(-1).getLiteral()));
         } else if (match(Token.Type.CHARACTER)) {
             // Handle escape characters in string literals.
             String str = tokens.get(-1).getLiteral().substring(1, tokens.get(-1).getLiteral().length() - 1);
@@ -396,7 +459,7 @@ public final class Parser {
             String str = tokens.get(-1).getLiteral().substring(1, tokens.get(-1).getLiteral().length() - 1);
             str = str.replace("\\b", "\b").replace("\\n", "\n")
                     .replace("\\r", "\r").replace("\\t", "\t")
-                    .replace("\\'", "'").replace("\\", "\"")
+                    .replace("\\'", "'").replace("\\\"", "\"")
                     .replace("\\\\", "\\");
             return new Ast.Expr.Literal(str);
         } else if (match("(")) {

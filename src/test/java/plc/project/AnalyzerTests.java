@@ -261,8 +261,61 @@ public final class AnalyzerTests {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource
-    public void testLiteralExpression(String test, Ast.Expr.Literal ast, Ast.Expr.Literal expected) {
-        test(ast, expected, new Scope(null));
+    public void testForStatement(String test, Ast.Stmt.For ast, Ast.Stmt.For expected) {
+        Analyzer analyzer = test(ast, expected, init(new Scope(null), scope -> {
+            scope.defineVariable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL);
+            scope.defineFunction("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL);
+        }));
+    }
+
+    private static Stream<Arguments> testForStatement() {
+        return Stream.of(
+                Arguments.of("Valid Loop",
+                        new Ast.Stmt.For("num",
+                                new Ast.Expr.Access(Optional.empty(), "list"),
+                                Arrays.asList(new Ast.Stmt.Expression(
+                                        new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
+                                                new Ast.Expr.Access(Optional.empty(), "num")
+                                        ))
+                                ))
+                        ),
+                        init(new Ast.Stmt.For("num",
+                                init(new Ast.Expr.Access(Optional.empty(), "list"), ast -> ast.setVariable(
+                                        new Environment.Variable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL))
+                                ),
+                                Arrays.asList(new Ast.Stmt.Expression(
+                                        init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
+                                                        init(new Ast.Expr.Access(Optional.empty(), "num"), access -> access.setVariable(
+                                                                new Environment.Variable("num", "num", Environment.Type.INTEGER, Environment.NIL))
+                                                        ))
+                                                ), func -> func.setFunction(
+                                                        new Environment.Function("print", "System.out.println",
+                                                                Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL))
+                                        )
+                                ))
+                        ), ast -> {
+                            Scope scope = new Scope(null);
+                            scope.defineVariable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL);
+                            scope.defineVariable("num", "num", Environment.Type.INTEGER, Environment.NIL);
+                            scope.defineFunction("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL);
+                        })
+                ),
+                Arguments.of("Empty Statements",
+                        // FOR num IN list DO END
+                        new Ast.Stmt.For("num",
+                                new Ast.Expr.Access(Optional.empty(), "list"),
+                                Arrays.asList()
+                        ),
+                        init(new Ast.Stmt.For("num",
+                                init(new Ast.Expr.Access(Optional.empty(), "list"), ast -> ast.setVariable(new Environment.Variable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL))),
+                                Arrays.asList()
+                        ), ast -> {
+                            Scope scope = new Scope(null);
+                            scope.defineVariable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL);
+                            scope.defineVariable("num", "num", Environment.Type.INTEGER, Environment.NIL);
+                        })
+                )
+        );
     }
 
     private static Stream<Arguments> testLiteralExpression() {
@@ -341,6 +394,39 @@ public final class AnalyzerTests {
                                 new Ast.Expr.Literal(BigDecimal.ONE)
                         ),
                         null
+                )
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource
+    public void testGroupExpression(String test, Ast.Expr.Group ast, Ast.Expr.Group expected) {
+        test(ast, expected, new Scope(null));
+    }
+
+    private static Stream<Arguments> testGroupExpression() {
+        return Stream.of(
+                Arguments.of("Grouped Literal",
+                        // (1)
+                        new Ast.Expr.Group(new Ast.Expr.Literal(BigInteger.ONE)),
+                        init(new Ast.Expr.Group(
+                                init(new Ast.Expr.Literal(BigInteger.ONE), ast -> ast.setType(Environment.Type.INTEGER))
+                        ), ast -> ast.setType(Environment.Type.INTEGER))
+                ),
+                Arguments.of("Grouped Binary",
+                        // (1 + 10)
+                        new Ast.Expr.Group(
+                                new Ast.Expr.Binary("+",
+                                        new Ast.Expr.Literal(BigInteger.ONE),
+                                        new Ast.Expr.Literal(BigInteger.TEN)
+                                )
+                        ),
+                        init(new Ast.Expr.Group(
+                                init(new Ast.Expr.Binary("+",
+                                        init(new Ast.Expr.Literal(BigInteger.ONE), lit -> lit.setType(Environment.Type.INTEGER)),
+                                        init(new Ast.Expr.Literal(BigInteger.TEN), lit -> lit.setType(Environment.Type.INTEGER))
+                                ), bin -> bin.setType(Environment.Type.INTEGER))
+                        ), ast -> ast.setType(Environment.Type.INTEGER))
                 )
         );
     }

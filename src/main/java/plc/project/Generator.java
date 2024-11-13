@@ -39,7 +39,6 @@ public final class Generator implements Ast.Visitor<Void> {
         writer.println("    }");
         writer.println();
 
-        // Visit all methods in the AST
         for (Ast.Method method : ast.getMethods()) {
             visit(method);
         }
@@ -47,7 +46,6 @@ public final class Generator implements Ast.Visitor<Void> {
         writer.print("}");
         return null;
     }
-
 
     @Override
     public Void visit(Ast.Field ast) {
@@ -71,12 +69,10 @@ public final class Generator implements Ast.Visitor<Void> {
         writer.print(ast.getName() + "() {");
         newline(++indent);
 
-        // Generate the method body statements with correct indentation and newlines
         for (int i = 0; i < ast.getStatements().size(); i++) {
             writer.print("    "); // Ensure consistent indentation
             visit(ast.getStatements().get(i));
 
-            // Avoid adding a newline after the last statement
             if (i < ast.getStatements().size() - 1) {
                 newline(indent);
             }

@@ -72,64 +72,47 @@ public final class Parser {
                 throw new ParseException("Expected type after ':'.", tokens.get(-1).getIndex());
             }
             type = Optional.of(tokens.get(-1).getLiteral());
-        } else {
-            // Throw ParseException if the type is required and missing
-            throw new ParseException("Type name is required for field declaration.", tokens.get(-1).getIndex());
-        }
+
         // Match the optional value assignment ('=' expr)
         Optional<Ast.Expr> value = Optional.empty();
         if (match("=")) {
             value = Optional.of(parseExpression());
         }
+
         // Ensure the field ends with a semicolon
         if (!match(";")) {
             throw new ParseException("Expected semicolon after field declaration.", tokens.get(-1).getIndex());
         }
-        // Return the field node with name, type, and optional value
-        return new Ast.Field(name, type.get(), value);
-    }
-
-
-
     /**
      * Parses the {@code method} rule. This method should only be called if the
      * next tokens start a method, aka {@code DEF}.
      */
     public Ast.Method parseMethod() throws ParseException {
+        // Match the 'DEF' keyword and the method name
         match("DEF");
         if (!match(Token.Type.IDENTIFIER)) {
             throw new ParseException("Expected method name after 'DEF'.", tokens.get(-1).getIndex());
         }
         String name = tokens.get(-1).getLiteral();
 
+
         if (!match("(")) {
             throw new ParseException("Expected '(' after method name.", tokens.get(-1).getIndex());
         }
 
-        List<String> parameters = new ArrayList<>();
-        List<String> parameterTypeNames = new ArrayList<>();
-
         if (peek(Token.Type.IDENTIFIER)) {
             do {
+                // Parameter name
                 if (!match(Token.Type.IDENTIFIER)) {
                     throw new ParseException("Expected parameter name in method signature.", tokens.get(-1).getIndex());
                 }
                 parameters.add(tokens.get(-1).getLiteral());
 
-                if (!match(":") || !match(Token.Type.IDENTIFIER)) {
-                    throw new ParseException("Expected type after parameter name.", tokens.get(-1).getIndex());
-                }
-                parameterTypeNames.add(tokens.get(-1).getLiteral());
-            } while (match(","));
-        }
-
-        if (parameters.size() != parameterTypeNames.size()) {
-            throw new ParseException("Each parameter must have an associated type.", tokens.get(-1).getIndex());
-        }
 
         if (!match(")")) {
             throw new ParseException("Expected ')' after parameter list.", tokens.get(-1).getIndex());
         }
+
 
         Optional<String> returnTypeName = Optional.empty();
         if (match(":")) {

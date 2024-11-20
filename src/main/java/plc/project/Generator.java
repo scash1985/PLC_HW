@@ -32,66 +32,98 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Source ast) {
-        // Print class header
-        print("public class Main {");
-        newline(++indent);
-        // Generate fields
-        for (Ast.Field field : ast.getFields()) {
-            visit(field);
-            newline(indent);
+        writer.println("public class Main {");
+        writer.println();
+
+        // Include the `public static void main` method only if a `main` method is defined
+        boolean hasMainMethod = ast.getMethods().stream().anyMatch(method -> method.getName().equals("main"));
+        if (hasMainMethod) {
+            writer.println("    public static void main(String[] args) {");
+            writer.println("        System.exit(new Main().main());");
+            writer.println("    }");
+            writer.println();
         }
-        // Generate methods
+
+        // Visit all methods in the AST
         for (Ast.Method method : ast.getMethods()) {
-            newline(indent);
             visit(method);
         }
-        newline(--indent);
-        print("}");
+
+        writer.print("}");
         return null;
     }
 
     @Override
     public Void visit(Ast.Field ast) {
-        print("public static ", ast.getTypeName(), " ", ast.getName());
+        // Use the appropriate type name, converting "Decimal" to "double"
+        String typeName = ast.getTypeName();
+        if ("Integer".equals(typeName)) {
+            typeName = "int";
+        } else if ("Decimal".equals(typeName)) {
+            typeName = "double";
+        }
+
+        // Generate the field declaration
+        print(typeName, " ", ast.getName());
+
+        // Include initialization value if present
         if (ast.getValue().isPresent()) {
             print(" = ");
             visit(ast.getValue().get());
         }
+
         print(";");
         return null;
     }
 
     @Override
     public Void visit(Ast.Method ast) {
-        boolean isMainMethod = ast.getName().equals("main") && ast.getParameters().isEmpty();
+        writer.print("    ");
 
-        // Print the public static main method if it's the entry point
-        if (isMainMethod) {
-            print("public static void main(String[] args) {");
-            newline(++indent);
-            print("System.exit(new Main().main());");
-            newline(--indent);
-            print("}");
-            newline(indent);
-        }
-
-        // Print method header for all other methods, including the int main() method
+        // Map return type names to Java equivalents
         String returnType = ast.getReturnTypeName().orElse("void");
-        if (returnType.equals("Integer")) {
-            returnType = "int"; // Ensure correct return type formatting
+        if ("Integer".equals(returnType)) {
+            returnType = "int";
+        } else if ("Decimal".equals(returnType)) {
+            returnType = "double";
+        } else if ("Void".equals(returnType)) {
+            returnType = "void"; // Correctly map "Void" to "void"
         }
 
-        print("int main() {");
+        writer.print(returnType + " " + ast.getName() + "(");
+
+        // Generate method parameters
+        for (int i = 0; i < ast.getParameters().size(); i++) {
+            String parameterType = ast.getParameterTypeNames().get(i);
+            if ("Integer".equals(parameterType)) {
+                parameterType = "int";
+            } else if ("Decimal".equals(parameterType)) {
+                parameterType = "double";
+            }
+
+            if (i > 0) {
+                writer.print(", ");
+            }
+            writer.print(parameterType + " " + ast.getParameters().get(i));
+        }
+        writer.print(") {");
         newline(++indent);
 
-        // Print method body statements
-        for (Ast.Stmt statement : ast.getStatements()) {
-            visit(statement);
-            newline(indent);
+        // Generate method body statements with correct indentation and newlines
+        for (int i = 0; i < ast.getStatements().size(); i++) {
+            writer.print("    "); // Ensure consistent indentation
+            visit(ast.getStatements().get(i));
+
+            // Avoid adding a newline after the last statement
+            if (i < ast.getStatements().size() - 1) {
+                newline(indent);
+            }
         }
 
         newline(--indent);
-        print("}");
+        writer.print("    }");
+        writer.println();
+        writer.println();
         return null;
     }
 
@@ -101,9 +133,8 @@ public final class Generator implements Ast.Visitor<Void> {
             Ast.Expr.Function function = (Ast.Expr.Function) ast.getExpression();
             if (function.getName().equals("print")) {
                 print("System.out.println(");
-                visit(function.getArguments().get(0)); // Assumes one argument for print
-                print(")");
-                print(";");
+                visit(function.getArguments().get(0));
+                print(");");
                 return null;
             }
         }
@@ -114,10 +145,11 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.Declaration ast) {
+        // Determine the type name and map to Java primitive types
         String typeName = ast.getTypeName().orElse("");
         if (typeName.isEmpty() && ast.getValue().isPresent()) {
             // Infer type from the value expression
-            Object value = ast.getValue().get();
+            Ast.Expr value = ast.getValue().get();
             if (value instanceof Ast.Expr.Literal) {
                 Object literal = ((Ast.Expr.Literal) value).getLiteral();
                 if (literal instanceof BigDecimal) {
@@ -126,14 +158,15 @@ public final class Generator implements Ast.Visitor<Void> {
                     typeName = "int";
                 }
             } else {
-                typeName = "var";
+                typeName = "var"; // Fallback to 'var' if no type can be inferred
             }
-        } else if (typeName.equals("Integer")) {
-            typeName = "int";
-        } else if (typeName.equals("Decimal")) {
-            typeName = "double";
+        } else if ("Integer".equals(typeName)) {
+            typeName = "int"; // Convert "Integer" to "int"
+        } else if ("Decimal".equals(typeName)) {
+            typeName = "double"; // Convert "Decimal" to "double"
         }
 
+        // Print the declaration
         print(typeName, " ", ast.getName());
         if (ast.getValue().isPresent()) {
             print(" = ");
@@ -187,16 +220,22 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.For ast) {
+        // Print the "for" loop header
         print("for (var ", ast.getName(), " : ");
         visit(ast.getValue());
         print(") {");
         newline(++indent);
 
-        for (Ast.Stmt statement : ast.getStatements()) {
-            visit(statement);
-            newline(indent);
+        // Visit all statements within the "for" loop body
+        for (int i = 0; i < ast.getStatements().size(); i++) {
+            visit(ast.getStatements().get(i));
+            if (i < ast.getStatements().size() - 1) {
+                // Add a newline after all statements except the last one
+                newline(indent);
+            }
         }
 
+        // Close the "for" block
         newline(--indent);
         print("}");
         return null;
@@ -207,14 +246,18 @@ public final class Generator implements Ast.Visitor<Void> {
         print("while (");
         visit(ast.getCondition());
         print(") {");
-        newline(++indent);
 
-        for (Ast.Stmt statement : ast.getStatements()) {
-            visit(statement);
-            newline(indent);
+        if (!ast.getStatements().isEmpty()) {
+            newline(++indent);
+            for (int i = 0; i < ast.getStatements().size(); i++) {
+                visit(ast.getStatements().get(i));
+                if (i < ast.getStatements().size() - 1) {
+                    newline(indent);
+                }
+            }
+            newline(--indent);
         }
 
-        newline(--indent);
         print("}");
         return null;
     }
@@ -226,6 +269,7 @@ public final class Generator implements Ast.Visitor<Void> {
         print(";");
         return null;
     }
+
 
     @Override
     public Void visit(Ast.Expr.Literal ast) {

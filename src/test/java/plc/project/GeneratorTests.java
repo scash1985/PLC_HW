@@ -53,22 +53,50 @@ public class GeneratorTests {
                                 "}"
                         )
                 ),
-                Arguments.of("Multiple Fields",
-                        // LET x: String; LET y: String; LET z: String;
+                Arguments.of("Multiple Methods",
+                        // DEF f(): String DO print("Statement 1"); RETURN "f"; END
+                        // DEF g(): String DO print("Statement 2"); RETURN "g"; END
+                        // DEF h(): String DO print("Statement 3"); RETURN "h"; END
                         new Ast.Source(
+                                Arrays.asList(), // No fields for this test case
                                 Arrays.asList(
-                                        init(new Ast.Field("x", "String", Optional.empty()), ast -> ast.setVariable(new Environment.Variable("x", "x", Environment.Type.STRING, Environment.NIL))),
-                                        init(new Ast.Field("y", "String", Optional.empty()), ast -> ast.setVariable(new Environment.Variable("y", "y", Environment.Type.STRING, Environment.NIL))),
-                                        init(new Ast.Field("z", "String", Optional.empty()), ast -> ast.setVariable(new Environment.Variable("z", "z", Environment.Type.STRING, Environment.NIL)))
-                                ),
-                                Arrays.asList() // No methods for this test case
+                                        init(new Ast.Method("f", Arrays.asList(), Arrays.asList(), Optional.of("String"), Arrays.asList(
+                                                new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
+                                                        init(new Ast.Expr.Literal("Statement 1"), ast -> ast.setType(Environment.Type.STRING))
+                                                )), ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))),
+                                                new Ast.Stmt.Return(init(new Ast.Expr.Literal("f"), ast -> ast.setType(Environment.Type.STRING)))
+                                        )), ast -> ast.setFunction(new Environment.Function("f", "f", Arrays.asList(), Environment.Type.STRING, args -> Environment.NIL))),
+                                        init(new Ast.Method("g", Arrays.asList(), Arrays.asList(), Optional.of("String"), Arrays.asList(
+                                                new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
+                                                        init(new Ast.Expr.Literal("Statement 2"), ast -> ast.setType(Environment.Type.STRING))
+                                                )), ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))),
+                                                new Ast.Stmt.Return(init(new Ast.Expr.Literal("g"), ast -> ast.setType(Environment.Type.STRING)))
+                                        )), ast -> ast.setFunction(new Environment.Function("g", "g", Arrays.asList(), Environment.Type.STRING, args -> Environment.NIL))),
+                                        init(new Ast.Method("h", Arrays.asList(), Arrays.asList(), Optional.of("String"), Arrays.asList(
+                                                new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
+                                                        init(new Ast.Expr.Literal("Statement 3"), ast -> ast.setType(Environment.Type.STRING))
+                                                )), ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))),
+                                                new Ast.Stmt.Return(init(new Ast.Expr.Literal("h"), ast -> ast.setType(Environment.Type.STRING)))
+                                        )), ast -> ast.setFunction(new Environment.Function("h", "h", Arrays.asList(), Environment.Type.STRING, args -> Environment.NIL)))
+                                )
                         ),
                         String.join(System.lineSeparator(),
                                 "public class Main {",
                                 "",
-                                "    String x;",
-                                "    String y;",
-                                "    String z;",
+                                "    String f() {",
+                                "        System.out.println(\"Statement 1\");",
+                                "        return \"f\";",
+                                "    }",
+                                "",
+                                "    String g() {",
+                                "        System.out.println(\"Statement 2\");",
+                                "        return \"g\";",
+                                "    }",
+                                "",
+                                "    String h() {",
+                                "        System.out.println(\"Statement 3\");",
+                                "        return \"h\";",
+                                "    }",
                                 "",
                                 "}"
                         )
@@ -182,6 +210,111 @@ public class GeneratorTests {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource
+    void testFor(String test, Ast.Stmt.For ast, String expected) {
+        test(ast, expected);
+    }
+
+    private static Stream<Arguments> testFor() {
+        return Stream.of(
+                Arguments.of("For",
+                        // FOR num IN list DO print(num); END
+                        new Ast.Stmt.For(
+                                "num",
+                                init(new Ast.Expr.Access(Optional.empty(), "list"),
+                                        ast -> ast.setVariable(new Environment.Variable("list", "list", Environment.Type.ANY, Environment.NIL))),
+                                Arrays.asList(
+                                        new Ast.Stmt.Expression(
+                                                init(new Ast.Expr.Function(
+                                                                Optional.empty(),
+                                                                "print",
+                                                                Arrays.asList(
+                                                                        init(new Ast.Expr.Access(Optional.empty(), "num"),
+                                                                                ast -> ast.setVariable(new Environment.Variable("num", "num", Environment.Type.ANY, Environment.NIL)))
+                                                                )
+                                                        ),
+                                                        ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))
+                                        )
+                                )
+                        ),
+                        String.join(System.lineSeparator(),
+                                "for (var num : list) {",
+                                "    System.out.println(num);",
+                                "}"
+                        )
+                )
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource
+    void testWhile(String test, Ast.Stmt.While ast, String expected) {
+        test(ast, expected);
+    }
+
+    private static Stream<Arguments> testWhile() {
+        return Stream.of(
+                // Test for While with Empty Body
+                Arguments.of("While with Empty Body",
+                        // WHILE cond DO END
+                        new Ast.Stmt.While(
+                                init(new Ast.Expr.Access(Optional.empty(), "cond"),
+                                        ast -> ast.setVariable(new Environment.Variable("cond", "cond", Environment.Type.BOOLEAN, Environment.NIL))),
+                                Arrays.asList()
+                        ),
+                        String.join(System.lineSeparator(),
+                                "while (cond) {",
+                                "}"
+                        )
+                ),
+                // Test for While with Multiple Statements
+                Arguments.of("While with Multiple Statements",
+                        // WHILE cond DO print(1); print(2); print(3); END
+                        new Ast.Stmt.While(
+                                init(new Ast.Expr.Access(Optional.empty(), "cond"),
+                                        ast -> ast.setVariable(new Environment.Variable("cond", "cond", Environment.Type.BOOLEAN, Environment.NIL))),
+                                Arrays.asList(
+                                        new Ast.Stmt.Expression(
+                                                init(new Ast.Expr.Function(
+                                                                Optional.empty(),
+                                                                "print",
+                                                                Arrays.asList(init(new Ast.Expr.Literal(BigInteger.ONE),
+                                                                        ast -> ast.setType(Environment.Type.INTEGER)))
+                                                        ),
+                                                        ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))
+                                        ),
+                                        new Ast.Stmt.Expression(
+                                                init(new Ast.Expr.Function(
+                                                                Optional.empty(),
+                                                                "print",
+                                                                Arrays.asList(init(new Ast.Expr.Literal(BigInteger.valueOf(2)),
+                                                                        ast -> ast.setType(Environment.Type.INTEGER)))
+                                                        ),
+                                                        ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))
+                                        ),
+                                        new Ast.Stmt.Expression(
+                                                init(new Ast.Expr.Function(
+                                                                Optional.empty(),
+                                                                "print",
+                                                                Arrays.asList(init(new Ast.Expr.Literal(BigInteger.valueOf(3)),
+                                                                        ast -> ast.setType(Environment.Type.INTEGER)))
+                                                        ),
+                                                        ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))
+                                        )
+                                )
+                        ),
+                        String.join(System.lineSeparator(),
+                                "while (cond) {",
+                                "    System.out.println(1);",
+                                "    System.out.println(2);",
+                                "    System.out.println(3);",
+                                "}"
+                        )
+                )
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource
     void testBinaryExpression(String test, Ast.Expr.Binary ast, String expected) {
         test(ast, expected);
     }
@@ -269,13 +402,13 @@ public class GeneratorTests {
 
     private static Stream<Arguments> testField() {
         return Stream.of(
-                Arguments.of("Field Declaration",
+                Arguments.of("Declaration",
                         // LET name: Integer;
                         init(new Ast.Field("name", "Integer", Optional.empty()),
                                 ast -> ast.setVariable(new Environment.Variable("name", "name", Environment.Type.INTEGER, Environment.NIL))),
                         "int name;"
                 ),
-                Arguments.of("Field Initialization",
+                Arguments.of("Initialization",
                         // LET name: Decimal = 1.0;
                         init(new Ast.Field("name", "Decimal", Optional.of(
                                 init(new Ast.Expr.Literal(new BigDecimal("1.0")), ast -> ast.setType(Environment.Type.DECIMAL))

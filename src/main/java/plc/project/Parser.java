@@ -72,7 +72,6 @@ public final class Parser {
                 throw new ParseException("Expected type after ':'.", tokens.get(-1).getIndex());
             }
             type = Optional.of(tokens.get(-1).getLiteral());
-        }
 
         // Match the optional value assignment ('=' expr)
         Optional<Ast.Expr> value = Optional.empty();
@@ -84,12 +83,6 @@ public final class Parser {
         if (!match(";")) {
             throw new ParseException("Expected semicolon after field declaration.", tokens.get(-1).getIndex());
         }
-
-        // Return the field node with name, type, and optional value
-        return new Ast.Field(name, type.orElse("Any"), value);
-    }
-
-
     /**
      * Parses the {@code method} rule. This method should only be called if the
      * next tokens start a method, aka {@code DEF}.
@@ -102,14 +95,11 @@ public final class Parser {
         }
         String name = tokens.get(-1).getLiteral();
 
-        // Match the opening parenthesis '('
+
         if (!match("(")) {
             throw new ParseException("Expected '(' after method name.", tokens.get(-1).getIndex());
         }
 
-        // Parse parameters (if any)
-        List<String> parameters = new ArrayList<>();
-        List<String> parameterTypeNames = new ArrayList<>();
         if (peek(Token.Type.IDENTIFIER)) {
             do {
                 // Parameter name
@@ -118,24 +108,12 @@ public final class Parser {
                 }
                 parameters.add(tokens.get(-1).getLiteral());
 
-                // Optional parameter type
-                if (match(":")) {
-                    if (!match(Token.Type.IDENTIFIER)) {
-                        throw new ParseException("Expected type name after ':'.", tokens.get(-1).getIndex());
-                    }
-                    parameterTypeNames.add(tokens.get(-1).getLiteral());
-                } else {
-                    parameterTypeNames.add("Any"); // Default to "Any" if no type is provided
-                }
-            } while (match(","));
-        }
 
-        // Match the closing parenthesis ')'
         if (!match(")")) {
             throw new ParseException("Expected ')' after parameter list.", tokens.get(-1).getIndex());
         }
 
-        // Optionally match the return type (':' Type)
+
         Optional<String> returnTypeName = Optional.empty();
         if (match(":")) {
             if (!match(Token.Type.IDENTIFIER)) {
@@ -144,23 +122,19 @@ public final class Parser {
             returnTypeName = Optional.of(tokens.get(-1).getLiteral());
         }
 
-        // Ensure the 'DO' keyword is present after the method signature
         if (!match("DO")) {
             throw new ParseException("Expected 'DO' after method signature.", tokens.get(-1).getIndex());
         }
 
-        // Parse method body statements
         List<Ast.Stmt> statements = new ArrayList<>();
         while (!peek("END")) {
             statements.add(parseStatement());
         }
 
-        // Ensure the 'END' keyword is present
         if (!match("END")) {
             throw new ParseException("Expected 'END' to close method body.", tokens.get(-1).getIndex());
         }
 
-        // Return the parsed method AST node
         return new Ast.Method(name, parameters, parameterTypeNames, returnTypeName, statements);
     }
 

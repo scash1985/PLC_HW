@@ -32,22 +32,23 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Source ast) {
-        writer.println("public class Main {");
-        writer.println();
-        writer.println("    public static void main(String[] args) {");
-        writer.println("        System.exit(new Main().main());");
-        writer.println("    }");
-        writer.println();
-
-        // Visit all methods in the AST
+        // Print class header
+        print("public class Main {");
+        newline(++indent);
+        // Generate fields
+        for (Ast.Field field : ast.getFields()) {
+            visit(field);
+            newline(indent);
+        }
+        // Generate methods
         for (Ast.Method method : ast.getMethods()) {
+            newline(indent);
             visit(method);
         }
-
-        writer.print("}");
+        newline(--indent);
+        print("}");
         return null;
     }
-
 
     @Override
     public Void visit(Ast.Field ast) {
@@ -62,33 +63,37 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Method ast) {
-        writer.print("    ");
-        if (ast.getName().equals("main")) {
-            writer.print("int ");
-        } else {
-            writer.print(ast.getReturnTypeName().orElse("void") + " ");
+        boolean isMainMethod = ast.getName().equals("main") && ast.getParameters().isEmpty();
+
+        // Print the public static main method if it's the entry point
+        if (isMainMethod) {
+            print("public static void main(String[] args) {");
+            newline(++indent);
+            print("System.exit(new Main().main());");
+            newline(--indent);
+            print("}");
+            newline(indent);
         }
-        writer.print(ast.getName() + "() {");
+
+        // Print method header for all other methods, including the int main() method
+        String returnType = ast.getReturnTypeName().orElse("void");
+        if (returnType.equals("Integer")) {
+            returnType = "int"; // Ensure correct return type formatting
+        }
+
+        print("int main() {");
         newline(++indent);
 
-        // Generate the method body statements with correct indentation and newlines
-        for (int i = 0; i < ast.getStatements().size(); i++) {
-            writer.print("    "); // Ensure consistent indentation
-            visit(ast.getStatements().get(i));
-
-            // Avoid adding a newline after the last statement
-            if (i < ast.getStatements().size() - 1) {
-                newline(indent);
-            }
+        // Print method body statements
+        for (Ast.Stmt statement : ast.getStatements()) {
+            visit(statement);
+            newline(indent);
         }
 
         newline(--indent);
-        writer.print("    }");
-        writer.println();
-        writer.println();
+        print("}");
         return null;
     }
-
 
     @Override
     public Void visit(Ast.Stmt.Expression ast) {
@@ -96,8 +101,9 @@ public final class Generator implements Ast.Visitor<Void> {
             Ast.Expr.Function function = (Ast.Expr.Function) ast.getExpression();
             if (function.getName().equals("print")) {
                 print("System.out.println(");
-                visit(function.getArguments().get(0));
-                print(");");
+                visit(function.getArguments().get(0)); // Assumes one argument for print
+                print(")");
+                print(";");
                 return null;
             }
         }
@@ -220,7 +226,6 @@ public final class Generator implements Ast.Visitor<Void> {
         print(";");
         return null;
     }
-
 
     @Override
     public Void visit(Ast.Expr.Literal ast) {

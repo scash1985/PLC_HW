@@ -179,6 +179,142 @@ public class GeneratorTests {
         );
     }
 
+    private static Stream<Arguments> testWhileStatement() {
+        return Stream.of(
+                Arguments.of("While with Empty Statement",
+                        new Ast.Stmt.While(new Ast.Expr.Access(Optional.empty(), "cond"), Arrays.asList()),
+                        String.join(System.lineSeparator(),
+                                "while (cond) {",
+                                "}"
+                        )
+                ),
+                Arguments.of("While with Multiple Statements",
+                        new Ast.Stmt.While(new Ast.Expr.Access(Optional.empty(), "cond"), Arrays.asList(
+                                new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt1")),
+                                new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt2")),
+                                new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt3"))
+                        )),
+                        String.join(System.lineSeparator(),
+                                "while (cond) {",
+                                "    stmt1;",
+                                "    stmt2;",
+                                "    stmt3;",
+                                "}"
+                        )
+                )
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource
+    void testMultipleFields(String test, Ast.Source ast, String expected) {
+        test(ast, expected);
+    }
+
+    private static Stream<Arguments> testMultipleFields() {
+        return Stream.of(
+                Arguments.of("Multiple Fields",
+                        new Ast.Source(
+                                Arrays.asList(
+                                        new Ast.Field("x", "Integer", Optional.empty()),
+                                        new Ast.Field("y", "Decimal", Optional.of(
+                                                init(new Ast.Expr.Literal(new BigDecimal("3.14")), ast -> ast.setType(Environment.Type.DECIMAL))
+                                        )),
+                                        new Ast.Field("z", "String", Optional.of(
+                                                init(new Ast.Expr.Literal("Hello"), ast -> ast.setType(Environment.Type.STRING))
+                                        ))
+                                ),
+                                Arrays.asList()
+                        ),
+                        String.join(System.lineSeparator(),
+                                "public class Main {",
+                                "",
+                                "    public static Integer x;",
+                                "    public static Decimal y = 3.14;",
+                                "    public static String z = \"Hello\";",
+                                "",
+                                "}"
+                        )
+                )
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource
+    void testMultipleMethods(String test, Ast.Source ast, String expected) {
+        test(ast, expected);
+    }
+
+    private static Stream<Arguments> testMultipleMethods() {
+        return Stream.of(
+                Arguments.of("Multiple Methods",
+                        new Ast.Source(
+                                Arrays.asList(),
+                                Arrays.asList(
+                                        new Ast.Method("f", Arrays.asList(), Arrays.asList(), Optional.of("Integer"), Arrays.asList(
+                                                new Ast.Stmt.Return(init(new Ast.Expr.Access(Optional.empty(), "x"), ast -> ast.setVariable(new Environment.Variable("x", "x", Environment.Type.INTEGER, Environment.NIL))))
+                                        )),
+                                        new Ast.Method("g", Arrays.asList(), Arrays.asList(), Optional.of("Decimal"), Arrays.asList(
+                                                new Ast.Stmt.Return(init(new Ast.Expr.Access(Optional.empty(), "y"), ast -> ast.setVariable(new Environment.Variable("y", "y", Environment.Type.DECIMAL, Environment.NIL))))
+                                        )),
+                                        new Ast.Method("h", Arrays.asList(), Arrays.asList(), Optional.of("String"), Arrays.asList(
+                                                new Ast.Stmt.Return(init(new Ast.Expr.Access(Optional.empty(), "z"), ast -> ast.setVariable(new Environment.Variable("z", "z", Environment.Type.STRING, Environment.NIL))))
+                                        ))
+                                )
+                        ),
+                        String.join(System.lineSeparator(),
+                                "public class Main {",
+                                "",
+                                "    public static void main(String[] args) {",
+                                "        System.exit(new Main().main());",
+                                "    }",
+                                "",
+                                "    Integer f() {",
+                                "        return x;",
+                                "    }",
+                                "",
+                                "    Decimal g() {",
+                                "        return y;",
+                                "    }",
+                                "",
+                                "    String h() {",
+                                "        return z;",
+                                "    }",
+                                "",
+                                "}"
+                        )
+                )
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource
+    void testMethodSquare(String test, Ast.Method ast, String expected) {
+        test(ast, expected);
+    }
+
+    private static Stream<Arguments> testMethodSquare() {
+        return Stream.of(
+                Arguments.of("Square Method",
+                        // Decimal square() DO
+                        //     RETURN num * num;
+                        // END
+                        new Ast.Method("square", Arrays.asList(), Arrays.asList(), Optional.of("Decimal"), Arrays.asList(
+                                new Ast.Stmt.Return(init(new Ast.Expr.Binary("*",
+                                        init(new Ast.Expr.Access(Optional.empty(), "num"), ast -> ast.setVariable(new Environment.Variable("num", "num", Environment.Type.DECIMAL, null))),
+                                        init(new Ast.Expr.Access(Optional.empty(), "num"), ast -> ast.setVariable(new Environment.Variable("num", "num", Environment.Type.DECIMAL, null)))
+                                ), ast -> ast.setType(Environment.Type.DECIMAL)))
+                        )),
+                        String.join(System.lineSeparator(),
+                                "    double square() {",
+                                "        return num * num;",
+                                "    }",
+                                ""
+                        )
+                )
+        );
+    }
+
     /**
      * Helper function for tests, using a StringWriter as the output stream.
      */

@@ -254,27 +254,18 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
             case "<":
             case ">=":
             case "<=":
-                if (left.getValue() instanceof String && right.getValue() instanceof String) {
-                    // Handle string comparisons
-                    int comparison = requireType(String.class, left).compareTo(requireType(String.class, right));
-                    return handleComparison(ast.getOperator(), comparison);
-                } else if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
+                if (left.getValue() instanceof String || right.getValue() instanceof String) {
+                    throw new UnsupportedOperationException("Unsupported operator: " + ast.getOperator() + " for strings");
+                } else if (left.getValue().getClass() != right.getValue().getClass()) {
+                    // Throw an exception for mixed types
+                    throw new UnsupportedOperationException("Unsupported operator: " + ast.getOperator() + " for different types.");
+                } else if (left.getValue() instanceof BigInteger) {
                     // Handle BigInteger comparisons
                     int comparison = requireType(BigInteger.class, left).compareTo(requireType(BigInteger.class, right));
                     return handleComparison(ast.getOperator(), comparison);
-                } else if (left.getValue() instanceof BigDecimal && right.getValue() instanceof BigDecimal) {
+                } else if (left.getValue() instanceof BigDecimal) {
                     // Handle BigDecimal comparisons
                     int comparison = requireType(BigDecimal.class, left).compareTo(requireType(BigDecimal.class, right));
-                    return handleComparison(ast.getOperator(), comparison);
-                } else if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigDecimal) {
-                    // Convert BigInteger to BigDecimal for comparison
-                    BigDecimal leftConverted = new BigDecimal(requireType(BigInteger.class, left));
-                    int comparison = leftConverted.compareTo(requireType(BigDecimal.class, right));
-                    return handleComparison(ast.getOperator(), comparison);
-                } else if (left.getValue() instanceof BigDecimal && right.getValue() instanceof BigInteger) {
-                    // Convert BigInteger to BigDecimal for comparison
-                    BigDecimal rightConverted = new BigDecimal(requireType(BigInteger.class, right));
-                    int comparison = requireType(BigDecimal.class, left).compareTo(rightConverted);
                     return handleComparison(ast.getOperator(), comparison);
                 } else {
                     throw new UnsupportedOperationException("Unsupported operator: " + ast.getOperator() + " for non-comparable types.");

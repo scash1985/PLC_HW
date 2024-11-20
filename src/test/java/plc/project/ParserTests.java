@@ -473,6 +473,54 @@ final class ParserTests {
         );
     }
 
+    @ParameterizedTest
+    @MethodSource
+    void testFieldMissingType(String test, List<Token> tokens) {
+        Assertions.assertThrows(ParseException.class, () -> {
+            new Parser(tokens).parseField();
+        });
+    }
+
+    private static Stream<Arguments> testFieldMissingType() {
+        return Stream.of(
+                Arguments.of("No Type in Field",
+                        Arrays.asList(
+                                // LET name;
+                                new Token(Token.Type.IDENTIFIER, "LET", 0),
+                                new Token(Token.Type.IDENTIFIER, "name", 4),
+                                new Token(Token.Type.OPERATOR, ";", 8)
+                        )
+                )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    void testMethodMissingParameterType(String test, List<Token> tokens) {
+        Assertions.assertThrows(ParseException.class, () -> {
+            new Parser(tokens).parseMethod();
+        });
+    }
+
+    private static Stream<Arguments> testMethodMissingParameterType() {
+        return Stream.of(
+                Arguments.of("Argument Missing Type in Method",
+                        Arrays.asList(
+                                // DEF name(arg) DO stmt; END
+                                new Token(Token.Type.IDENTIFIER, "DEF", 0),
+                                new Token(Token.Type.IDENTIFIER, "name", 4),
+                                new Token(Token.Type.OPERATOR, "(", 8),
+                                new Token(Token.Type.IDENTIFIER, "arg", 9),
+                                new Token(Token.Type.OPERATOR, ")", 12),
+                                new Token(Token.Type.IDENTIFIER, "DO", 14),
+                                new Token(Token.Type.IDENTIFIER, "stmt", 17),
+                                new Token(Token.Type.OPERATOR, ";", 21),
+                                new Token(Token.Type.IDENTIFIER, "END", 23)
+                        )
+                )
+        );
+    }
+
     @Test
     void testExample1() {
         List<Token> input = Arrays.asList(
@@ -527,28 +575,28 @@ final class ParserTests {
         Ast.Source expected = new Ast.Source(
                 Arrays.asList(new Ast.Field("first", "Integer", Optional.of(new Ast.Expr.Literal(BigInteger.ONE)))),
                 Arrays.asList(new Ast.Method("main", Arrays.asList(), Arrays.asList(), Optional.of("Integer"), Arrays.asList(
-                        new Ast.Stmt.While(
-                                new Ast.Expr.Binary("!=",
-                                        new Ast.Expr.Access(Optional.empty(), "first"),
-                                        new Ast.Expr.Literal(BigInteger.TEN)
-                                ),
-                                Arrays.asList(
-                                        new Ast.Stmt.Expression(
-                                                new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
-                                                        new Ast.Expr.Access(Optional.empty(), "first"))
-                                                )
-                                        ),
-                                        new Ast.Stmt.Assignment(
+                                new Ast.Stmt.While(
+                                        new Ast.Expr.Binary("!=",
                                                 new Ast.Expr.Access(Optional.empty(), "first"),
-                                                new Ast.Expr.Binary("+",
+                                                new Ast.Expr.Literal(BigInteger.TEN)
+                                        ),
+                                        Arrays.asList(
+                                                new Ast.Stmt.Expression(
+                                                        new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
+                                                                new Ast.Expr.Access(Optional.empty(), "first"))
+                                                        )
+                                                ),
+                                                new Ast.Stmt.Assignment(
                                                         new Ast.Expr.Access(Optional.empty(), "first"),
-                                                        new Ast.Expr.Literal(BigInteger.ONE)
+                                                        new Ast.Expr.Binary("+",
+                                                                new Ast.Expr.Access(Optional.empty(), "first"),
+                                                                new Ast.Expr.Literal(BigInteger.ONE)
+                                                        )
                                                 )
                                         )
                                 )
-                        )
-                ))
-        ));
+                        ))
+                ));
         test(input, expected, Parser::parseSource);
     }
 

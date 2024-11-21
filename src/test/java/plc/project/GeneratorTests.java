@@ -262,8 +262,7 @@ public class GeneratorTests {
                                 Arrays.asList()
                         ),
                         String.join(System.lineSeparator(),
-                                "while (cond) {",
-                                "}"
+                                "while (cond) {","}"
                         )
                 ),
                 // Test for While with Multiple Statements
@@ -364,32 +363,6 @@ public class GeneratorTests {
                                 init(new Ast.Expr.Literal(BigInteger.valueOf(5)), ast -> ast.setType(Environment.Type.INTEGER))
                         )), ast -> ast.setFunction(new Environment.Function("slice", "substring", Arrays.asList(Environment.Type.ANY, Environment.Type.INTEGER, Environment.Type.INTEGER), Environment.Type.NIL, args -> Environment.NIL))),
                         "\"string\".substring(1, 5)"
-                )
-        );
-    }
-
-    private static Stream<Arguments> testWhileStatement() {
-        return Stream.of(
-                Arguments.of("While with Empty Statement",
-                        new Ast.Stmt.While(new Ast.Expr.Access(Optional.empty(), "cond"), Arrays.asList()),
-                        String.join(System.lineSeparator(),
-                                "while (cond) {",
-                                "}"
-                        )
-                ),
-                Arguments.of("While with Multiple Statements",
-                        new Ast.Stmt.While(new Ast.Expr.Access(Optional.empty(), "cond"), Arrays.asList(
-                                new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt1")),
-                                new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt2")),
-                                new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt3"))
-                        )),
-                        String.join(System.lineSeparator(),
-                                "while (cond) {",
-                                "    stmt1;",
-                                "    stmt2;",
-                                "    stmt3;",
-                                "}"
-                        )
                 )
         );
     }

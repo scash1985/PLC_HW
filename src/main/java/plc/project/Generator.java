@@ -243,11 +243,17 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.While ast) {
+        // Print the "while" loop header
         print("while (");
         visit(ast.getCondition());
         print(") {");
 
-        if (!ast.getStatements().isEmpty()) {
+        // Handle the body
+        if (ast.getStatements().isEmpty()) {
+            // For an empty body, directly close the block without a space or newline
+            print("}");
+        } else {
+            // For non-empty body, add a newline, process statements, and close the block
             newline(++indent);
             for (int i = 0; i < ast.getStatements().size(); i++) {
                 visit(ast.getStatements().get(i));
@@ -256,9 +262,8 @@ public final class Generator implements Ast.Visitor<Void> {
                 }
             }
             newline(--indent);
+            print("}");
         }
-
-        print("}");
         return null;
     }
 

@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -53,12 +54,9 @@ public class GeneratorTests {
                                 "}"
                         )
                 ),
-                Arguments.of("Multiple Methods",
-                        // DEF f(): String DO print("Statement 1"); RETURN "f"; END
-                        // DEF g(): String DO print("Statement 2"); RETURN "g"; END
-                        // DEF h(): String DO print("Statement 3"); RETURN "h"; END
+                Arguments.of("Multiple Fields & Methods",
                         new Ast.Source(
-                                Arrays.asList(), // No fields for this test case
+                                Arrays.asList(),
                                 Arrays.asList(
                                         init(new Ast.Method("f", Arrays.asList(), Arrays.asList(), Optional.of("String"), Arrays.asList(
                                                 new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
@@ -100,38 +98,89 @@ public class GeneratorTests {
                                 "",
                                 "}"
                         )
-                ),
-                Arguments.of("Multiple Methods",
-                        // DEF f(): String DO stmt1; END
-                        // DEF g(): String DO stmt2; END
-                        // DEF h(): String DO stmt3; END
+                )
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource
+    void testMethod(String test, Ast.Source ast, String expected) {
+        test(ast, expected);
+    }
+
+    private static Stream<Arguments> testMethod() {
+        return Stream.of(
+                Arguments.of("Square Method",
+                        // DEF square(num: Decimal): Decimal DO
+                        //     RETURN num * num;
+                        // END
                         new Ast.Source(
-                                Arrays.asList(), // No fields for this test case
+                                Arrays.asList(),
                                 Arrays.asList(
-                                        init(new Ast.Method("f", Arrays.asList(), Arrays.asList(), Optional.of("String"), Arrays.asList(
-                                                new Ast.Stmt.Expression(init(new Ast.Expr.Access(Optional.empty(), "stmt1"), ast -> ast.setVariable(new Environment.Variable("stmt1", "stmt1", Environment.Type.NIL, Environment.NIL))))
-                                        )), ast -> ast.setFunction(new Environment.Function("f", "f", Arrays.asList(), Environment.Type.STRING, args -> Environment.NIL))),
-                                        init(new Ast.Method("g", Arrays.asList(), Arrays.asList(), Optional.of("String"), Arrays.asList(
-                                                new Ast.Stmt.Expression(init(new Ast.Expr.Access(Optional.empty(), "stmt2"), ast -> ast.setVariable(new Environment.Variable("stmt2", "stmt2", Environment.Type.NIL, Environment.NIL))))
-                                        )), ast -> ast.setFunction(new Environment.Function("g", "g", Arrays.asList(), Environment.Type.STRING, args -> Environment.NIL))),
-                                        init(new Ast.Method("h", Arrays.asList(), Arrays.asList(), Optional.of("String"), Arrays.asList(
-                                                new Ast.Stmt.Expression(init(new Ast.Expr.Access(Optional.empty(), "stmt3"), ast -> ast.setVariable(new Environment.Variable("stmt3", "stmt3", Environment.Type.NIL, Environment.NIL))))
-                                        )), ast -> ast.setFunction(new Environment.Function("h", "h", Arrays.asList(), Environment.Type.STRING, args -> Environment.NIL)))
+                                        init(new Ast.Method(
+                                                "square",
+                                                Arrays.asList("num"),
+                                                Arrays.asList("Decimal"),
+                                                Optional.of("Decimal"),
+                                                Arrays.asList(
+                                                        new Ast.Stmt.Return(
+                                                                init(new Ast.Expr.Binary("*",
+                                                                        init(new Ast.Expr.Access(Optional.empty(), "num"), ast -> ast.setVariable(new Environment.Variable("num", "num", Environment.Type.DECIMAL, Environment.NIL))),
+                                                                        init(new Ast.Expr.Access(Optional.empty(), "num"), ast -> ast.setVariable(new Environment.Variable("num", "num", Environment.Type.DECIMAL, Environment.NIL)))
+                                                                ), ast -> {})
+                                                        )
+                                                )
+                                        ), ast -> ast.setFunction(new Environment.Function("square", "square", Arrays.asList(Environment.Type.DECIMAL), Environment.Type.DECIMAL, args -> Environment.NIL)))
                                 )
                         ),
                         String.join(System.lineSeparator(),
                                 "public class Main {",
                                 "",
-                                "    String f() {",
-                                "        stmt1;",
+                                "    double square(double num) {",
+                                "        return num * num;",
                                 "    }",
                                 "",
-                                "    String g() {",
-                                "        stmt2;",
-                                "    }",
+                                "}"
+                        )
+                ),
+                Arguments.of("Multiple Methods",
+                        // DEF func(x: Integer, y: Decimal, z: String): Void DO
+                        //     print(x);
+                        //     print(y);
+                        //     print(z);
+                        // END
+                        new Ast.Source(
+                                Arrays.asList(),
+                                Arrays.asList(
+                                        init(new Ast.Method(
+                                                "func",
+                                                Arrays.asList("x", "y", "z"),
+                                                Arrays.asList("Integer", "Decimal", "String"),
+                                                Optional.of("Void"),
+                                                Arrays.asList(
+                                                        // Print x
+                                                        new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
+                                                                init(new Ast.Expr.Access(Optional.empty(), "x"), ast -> ast.setVariable(new Environment.Variable("x", "x", Environment.Type.INTEGER, Environment.NIL)))
+                                                        )), ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))),
+                                                        // Print y
+                                                        new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
+                                                                init(new Ast.Expr.Access(Optional.empty(), "y"), ast -> ast.setVariable(new Environment.Variable("y", "y", Environment.Type.DECIMAL, Environment.NIL)))
+                                                        )), ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))),
+                                                        // Print z
+                                                        new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
+                                                                init(new Ast.Expr.Access(Optional.empty(), "z"), ast -> ast.setVariable(new Environment.Variable("z", "z", Environment.Type.STRING, Environment.NIL)))
+                                                        )), ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL))))
+                                                )
+                                        ), ast -> ast.setFunction(new Environment.Function("func", "func", Arrays.asList(Environment.Type.INTEGER, Environment.Type.DECIMAL, Environment.Type.STRING), Environment.Type.NIL, args -> Environment.NIL)))
+                                )
+                        ),
+                        String.join(System.lineSeparator(),
+                                "public class Main {",
                                 "",
-                                "    String h() {",
-                                "        stmt3;",
+                                "    void func(int x, double y, String z) {",
+                                "        System.out.println(x);",
+                                "        System.out.println(y);",
+                                "        System.out.println(z);",
                                 "    }",
                                 "",
                                 "}"
@@ -387,93 +436,6 @@ public class GeneratorTests {
                                 init(new Ast.Expr.Literal(new BigDecimal("1.0")), ast -> ast.setType(Environment.Type.DECIMAL))
                         )), ast -> ast.setVariable(new Environment.Variable("name", "name", Environment.Type.DECIMAL, Environment.NIL))),
                         "double name = 1.0;"
-                )
-        );
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource
-    void testMethod(String test, Ast.Source ast, String expected) {
-        test(ast, expected);
-    }
-
-    private static Stream<Arguments> testMethod() {
-        return Stream.of(
-                Arguments.of("Square Method",
-                        // DEF square(num: Decimal): Decimal DO
-                        //     RETURN num * num;
-                        // END
-                        new Ast.Source(
-                                Arrays.asList(),
-                                Arrays.asList(
-                                        init(new Ast.Method(
-                                                "square",
-                                                Arrays.asList("num"),
-                                                Arrays.asList("Decimal"),
-                                                Optional.of("Decimal"),
-                                                Arrays.asList(
-                                                        new Ast.Stmt.Return(
-                                                                init(new Ast.Expr.Binary("*",
-                                                                        init(new Ast.Expr.Access(Optional.empty(), "num"), ast -> ast.setVariable(new Environment.Variable("num", "num", Environment.Type.DECIMAL, Environment.NIL))),
-                                                                        init(new Ast.Expr.Access(Optional.empty(), "num"), ast -> ast.setVariable(new Environment.Variable("num", "num", Environment.Type.DECIMAL, Environment.NIL)))
-                                                                ), ast -> {})
-                                                        )
-                                                )
-                                        ), ast -> ast.setFunction(new Environment.Function("square", "square", Arrays.asList(Environment.Type.DECIMAL), Environment.Type.DECIMAL, args -> Environment.NIL)))
-                                )
-                        ),
-                        String.join(System.lineSeparator(),
-                                "public class Main {",
-                                "",
-                                "    double square(double num) {",
-                                "        return num * num;",
-                                "    }",
-                                "",
-                                "}"
-                        )
-                ),
-                Arguments.of("Func Method",
-                        // DEF func(x: Integer, y: Decimal, z: String): Void DO
-                        //     print(x);
-                        //     print(y);
-                        //     print(z);
-                        // END
-                        new Ast.Source(
-                                Arrays.asList(),
-                                Arrays.asList(
-                                        init(new Ast.Method(
-                                                "func",
-                                                Arrays.asList("x", "y", "z"),
-                                                Arrays.asList("Integer", "Decimal", "String"),
-                                                Optional.of("Void"),
-                                                Arrays.asList(
-                                                        // Print x
-                                                        new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
-                                                                init(new Ast.Expr.Access(Optional.empty(), "x"), ast -> ast.setVariable(new Environment.Variable("x", "x", Environment.Type.INTEGER, Environment.NIL)))
-                                                        )), ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))),
-                                                        // Print y
-                                                        new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
-                                                                init(new Ast.Expr.Access(Optional.empty(), "y"), ast -> ast.setVariable(new Environment.Variable("y", "y", Environment.Type.DECIMAL, Environment.NIL)))
-                                                        )), ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL)))),
-                                                        // Print z
-                                                        new Ast.Stmt.Expression(init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
-                                                                init(new Ast.Expr.Access(Optional.empty(), "z"), ast -> ast.setVariable(new Environment.Variable("z", "z", Environment.Type.STRING, Environment.NIL)))
-                                                        )), ast -> ast.setFunction(new Environment.Function("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL))))
-                                                )
-                                        ), ast -> ast.setFunction(new Environment.Function("func", "func", Arrays.asList(Environment.Type.INTEGER, Environment.Type.DECIMAL, Environment.Type.STRING), Environment.Type.NIL, args -> Environment.NIL)))
-                                )
-                        ),
-                        String.join(System.lineSeparator(),
-                                "public class Main {",
-                                "",
-                                "    void func(int x, double y, String z) {",
-                                "        System.out.println(x);",
-                                "        System.out.println(y);",
-                                "        System.out.println(z);",
-                                "    }",
-                                "",
-                                "}"
-                        )
                 )
         );
     }

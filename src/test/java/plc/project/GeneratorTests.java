@@ -22,6 +22,7 @@ public class GeneratorTests {
         test(ast, expected);
     }
 
+    //
     private static Stream<Arguments> testSource() {
         return Stream.of(
                 Arguments.of("Hello, World!",

@@ -35,6 +35,18 @@ public final class Generator implements Ast.Visitor<Void> {
         writer.println("public class Main {");
         writer.println();
 
+        // Declare all fields
+        for (Ast.Field field : ast.getFields()) {
+            writer.print("    ");
+            visit(field);
+            writer.println(); // Add a newline after each field
+        }
+
+        // Add a newline after fields if any are present
+        if (!ast.getFields().isEmpty()) {
+            writer.println();
+        }
+
         // Include the `public static void main` method only if a `main` method is defined
         boolean hasMainMethod = ast.getMethods().stream().anyMatch(method -> method.getName().equals("main"));
         if (hasMainMethod) {
@@ -44,7 +56,7 @@ public final class Generator implements Ast.Visitor<Void> {
             writer.println();
         }
 
-        // Visit all methods in the AST
+        // Declare all methods
         for (Ast.Method method : ast.getMethods()) {
             visit(method);
         }
@@ -99,6 +111,8 @@ public final class Generator implements Ast.Visitor<Void> {
                 parameterType = "int";
             } else if ("Decimal".equals(parameterType)) {
                 parameterType = "double";
+            } else if ("Integeriterable".equals(parameterType)) {
+                parameterType = "Iterable<Integer>"; // Correct the parameter type
             }
 
             if (i > 0) {
@@ -107,34 +121,48 @@ public final class Generator implements Ast.Visitor<Void> {
             writer.print(parameterType + " " + ast.getParameters().get(i));
         }
         writer.print(") {");
-        newline(++indent);
 
-        // Generate method body statements with correct indentation and newlines
-        for (int i = 0; i < ast.getStatements().size(); i++) {
-            writer.print("    "); // Ensure consistent indentation
-            visit(ast.getStatements().get(i));
+        if (ast.getStatements().isEmpty()) {
+            // Ensure the closing brace is properly formatted for empty method bodies
+            writer.println();
+            writer.print("    }");
+        } else {
+            newline(++indent);
 
-            // Avoid adding a newline after the last statement
-            if (i < ast.getStatements().size() - 1) {
-                newline(indent);
+            // Generate method body statements with correct indentation and newlines
+            for (int i = 0; i < ast.getStatements().size(); i++) {
+                writer.print("    "); // Ensure consistent indentation
+                visit(ast.getStatements().get(i));
+
+                // Avoid adding a newline after the last statement
+                if (i < ast.getStatements().size() - 1) {
+                    newline(indent);
+                }
             }
-        }
 
-        newline(--indent);
-        writer.print("    }");
+            newline(--indent);
+            writer.print("    }");
+        }
         writer.println();
         writer.println();
         return null;
     }
+
 
     @Override
     public Void visit(Ast.Stmt.Expression ast) {
         if (ast.getExpression() instanceof Ast.Expr.Function) {
             Ast.Expr.Function function = (Ast.Expr.Function) ast.getExpression();
             if (function.getName().equals("print")) {
-                print("System.out.println(");
-                visit(function.getArguments().get(0));
-                print(");");
+                // Handle printing multiple arguments separately
+                for (int i = 0; i < function.getArguments().size(); i++) {
+                    print("System.out.println(");
+                    visit(function.getArguments().get(i));
+                    print(");");
+                    if (i < function.getArguments().size() - 1) {
+                        newline(indent);
+                    }
+                }
                 return null;
             }
         }
@@ -220,22 +248,19 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.For ast) {
-        // Print the "for" loop header
         print("for (var ", ast.getName(), " : ");
         visit(ast.getValue());
         print(") {");
         newline(++indent);
 
-        // Visit all statements within the "for" loop body
+        // Visit all statements in the loop body
         for (int i = 0; i < ast.getStatements().size(); i++) {
             visit(ast.getStatements().get(i));
             if (i < ast.getStatements().size() - 1) {
-                // Add a newline after all statements except the last one
                 newline(indent);
             }
         }
 
-        // Close the "for" block
         newline(--indent);
         print("}");
         return null;
@@ -275,14 +300,18 @@ public final class Generator implements Ast.Visitor<Void> {
         return null;
     }
 
-
     @Override
     public Void visit(Ast.Expr.Literal ast) {
         if (ast.getLiteral() == null) {
             print("null");
         } else if (ast.getLiteral() instanceof String) {
+            // Handle string literals with proper escaping
             print("\"", ast.getLiteral().toString().replace("\"", "\\\""), "\"");
+        } else if (ast.getLiteral() instanceof Character) {
+            // Handle character literals with single quotes
+            print("'", ast.getLiteral().toString().replace("'", "\\'"), "'");
         } else {
+            // Handle other literal types (numbers, booleans, etc.)
             print(ast.getLiteral().toString());
         }
         return null;
@@ -298,6 +327,7 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Expr.Binary ast) {
+        // Visit the left-hand side of the binary operation
         visit(ast.getLeft());
 
         // Map logical operators to Java equivalents
@@ -308,10 +338,15 @@ public final class Generator implements Ast.Visitor<Void> {
             operator = "||";
         }
 
+        // Print the operator
         print(" ", operator, " ");
+
+        // Visit the right-hand side of the binary operation
         visit(ast.getRight());
+
         return null;
     }
+
 
     @Override
     public Void visit(Ast.Expr.Access ast) {

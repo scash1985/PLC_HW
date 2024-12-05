@@ -32,6 +32,11 @@ public final class Analyzer implements Ast.Visitor<Void> {
         for (Ast.Method method : ast.getMethods()) {
             visit(method);
         }
+        Environment.Function env = scope.lookupFunction("main", 0);
+
+        if (env.getReturnType() != Environment.Type.INTEGER)
+            throw new RuntimeException("Main function's return type is not an integer.");
+
         return null;
     }
 
@@ -53,27 +58,27 @@ public final class Analyzer implements Ast.Visitor<Void> {
     @Override
     public Void visit(Ast.Method ast) {
         this.method = ast;
-
-        List<Environment.Type> parameterTypes = new ArrayList<>();
+        // Create a list of parameter types
+        ArrayList<Environment.Type> parameterTypes = new ArrayList<>();
         for (String typeName : ast.getParameterTypeNames()) {
             parameterTypes.add(Environment.getType(typeName));
         }
-
+        // Get the return type of the method
         Environment.Type returnType = ast.getReturnTypeName().isPresent()
                 ? Environment.getType(ast.getReturnTypeName().get())
-                : Environment.Type.ANY;
-
+                : Environment.Type.NIL;
+        // Define the method in the current scope with its return type
         Environment.Function methodFunction = scope.defineFunction(
                 ast.getName(), ast.getName(), parameterTypes, returnType, args -> Environment.NIL
         );
         ast.setFunction(methodFunction);
-
+        // Enter a new scope for the method body
         scope = new Scope(scope);
-
+        // Define parameters as variables in the new scope
         for (int i = 0; i < ast.getParameters().size(); i++) {
             scope.defineVariable(ast.getParameters().get(i), ast.getParameters().get(i), parameterTypes.get(i), Environment.NIL);
         }
-
+        // Visit each statement in the method body
         for (Ast.Stmt stmt : ast.getStatements()) {
             visit(stmt);
         }
@@ -88,6 +93,7 @@ public final class Analyzer implements Ast.Visitor<Void> {
         }
 
         this.method = null;
+        // Exit the scope after processing the method
         scope = scope.getParent();
         return null;
     }
@@ -97,11 +103,15 @@ public final class Analyzer implements Ast.Visitor<Void> {
         // Visit the expression to ensure it's valid
         visit(ast.getExpression());
 
+        if (!(ast.getExpression() instanceof Ast.Expr.Function)) {
+            throw new RuntimeException("Expression is not a function.");
+        }
+
         // Get the type of the expression
         Environment.Type exprType = ast.getExpression().getType();
 
         // Allow the expression to evaluate to NIL if it is a valid function like `print`
-        if (exprType.equals(Environment.Type.NIL) && ast.getExpression() instanceof Ast.Expr.Function) {
+        if (exprType.equals(Environment.Type.NIL)) {
             Ast.Expr.Function funcExpr = (Ast.Expr.Function) ast.getExpression();
             if (funcExpr.getFunction().getReturnType().equals(Environment.Type.NIL)) {
                 return null; // It's okay for functions like `print` to return NIL
@@ -167,7 +177,7 @@ public final class Analyzer implements Ast.Visitor<Void> {
         }
 
         // Check if both 'then' and 'else' branches are empty
-        if (ast.getThenStatements().isEmpty() && ast.getElseStatements().isEmpty()) {
+        if (ast.getThenStatements().isEmpty()) {
             throw new RuntimeException("If statement must have at least one statement in the 'then' or 'else' branch.");
         }
 
@@ -198,6 +208,10 @@ public final class Analyzer implements Ast.Visitor<Void> {
         // Check if the value's type is assignable to an iterable type
         if (!ast.getValue().getType().equals(Environment.Type.INTEGER_ITERABLE)) {
             throw new RuntimeException("The value of the for loop must be an iterable type, such as INTEGER_ITERABLE.");
+        }
+
+        if (ast.getStatements().isEmpty()) {
+            throw new RuntimeException("The statements list must not be empty.");
         }
 
         // Enter a new scope for the loop body
@@ -266,6 +280,10 @@ public final class Analyzer implements Ast.Visitor<Void> {
             }
             ast.setType(Environment.Type.INTEGER);
         } else if (literal instanceof BigDecimal) {
+            BigDecimal value = (BigDecimal) literal;
+            if (value.doubleValue() == Double.NEGATIVE_INFINITY || value.doubleValue() == Double.POSITIVE_INFINITY) {
+                throw new RuntimeException("Double literal is out of range.");
+            }
             ast.setType(Environment.Type.DECIMAL);
         } else {
             ast.setType(Environment.Type.NIL);
@@ -282,6 +300,11 @@ public final class Analyzer implements Ast.Visitor<Void> {
         // Ensure the inner expression is valid (not NIL unless it's allowed)
         if (ast.getExpression().getType().equals(Environment.Type.NIL)) {
             throw new RuntimeException("Grouped expression must not evaluate to NIL.");
+        }
+
+        // Ensure the contained expression is a binary expression
+        if (!(ast.getExpression() instanceof Ast.Expr.Binary)) {
+            throw new RuntimeException("Group expression must be a binary expression.");
         }
 
         // Set the type of the group to match the type of the inner expression
@@ -304,16 +327,13 @@ public final class Analyzer implements Ast.Visitor<Void> {
         switch (ast.getOperator()) {
             case "==":
             case "!=":
-                requireAssignable(leftType, rightType);
-                ast.setType(Environment.Type.BOOLEAN);
-                break;
             case "<":
             case ">":
             case "<=":
             case ">=":
-                if (!leftType.equals(Environment.Type.COMPARABLE) || !rightType.equals(Environment.Type.COMPARABLE)) {
-                    throw new RuntimeException("Operands must be comparable types.");
-                }
+                requireAssignable(Environment.Type.COMPARABLE, leftType);
+                requireAssignable(Environment.Type.COMPARABLE, rightType);
+                requireAssignable(leftType, rightType);
                 ast.setType(Environment.Type.BOOLEAN);
                 break;
             case "+":

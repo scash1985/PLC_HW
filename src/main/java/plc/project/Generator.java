@@ -33,34 +33,46 @@ public final class Generator implements Ast.Visitor<Void> {
     @Override
     public Void visit(Ast.Source ast) {
         writer.println("public class Main {");
-        writer.println();
+        newline(++indent);
 
         // Declare all fields
-        for (Ast.Field field : ast.getFields()) {
-            writer.print("    ");
-            visit(field);
-            writer.println(); // Add a newline after each field
+        for (int i = 0; i < ast.getFields().size(); i++) {
+            visit(ast.getFields().get(i));
+
+            // Avoid adding a newline after the last field
+            if (i < ast.getFields().size() - 1) {
+                newline(indent);
+            }
+            else {
+                newline(0);
+            }
         }
 
         // Add a newline after fields if any are present
         if (!ast.getFields().isEmpty()) {
-            writer.println();
+            newline(indent);
         }
 
         // Include the `public static void main` method only if a `main` method is defined
         boolean hasMainMethod = ast.getMethods().stream().anyMatch(method -> method.getName().equals("main"));
         if (hasMainMethod) {
-            writer.println("    public static void main(String[] args) {");
+            writer.println("public static void main(String[] args) {");
             writer.println("        System.exit(new Main().main());");
             writer.println("    }");
-            writer.println();
+            newline(indent);
         }
 
         // Declare all methods
-        for (Ast.Method method : ast.getMethods()) {
-            visit(method);
+        for (int i = 0; i < ast.getMethods().size(); i++) {
+            visit(ast.getMethods().get(i));
+
+            // Avoid adding a newline after the last method
+            if (i < ast.getMethods().size() - 1) {
+                newline(indent);
+            }
         }
 
+        newline(0);
         writer.print("}");
         return null;
     }
@@ -90,7 +102,6 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Method ast) {
-        writer.print("    ");
 
         // Map return type names to Java equivalents
         String returnType = ast.getReturnTypeName().orElse("void");
@@ -124,14 +135,13 @@ public final class Generator implements Ast.Visitor<Void> {
 
         if (ast.getStatements().isEmpty()) {
             // Ensure the closing brace is properly formatted for empty method bodies
-            writer.println();
-            writer.print("    }");
+            newline(indent);
+            writer.print("}");
         } else {
             newline(++indent);
 
             // Generate method body statements with correct indentation and newlines
             for (int i = 0; i < ast.getStatements().size(); i++) {
-                writer.print("    "); // Ensure consistent indentation
                 visit(ast.getStatements().get(i));
 
                 // Avoid adding a newline after the last statement
@@ -141,10 +151,9 @@ public final class Generator implements Ast.Visitor<Void> {
             }
 
             newline(--indent);
-            writer.print("    }");
+            writer.print("}");
         }
-        writer.println();
-        writer.println();
+        newline(0);
         return null;
     }
 

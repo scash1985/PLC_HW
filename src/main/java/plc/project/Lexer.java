@@ -32,7 +32,7 @@ public final class Lexer {
     public List<Token> lex() {
         List<Token> tokens = new ArrayList<>();
         while (chars.has(0)) {
-            if (peek("[\\s\\u0008]")) { //check if next char is whitespace
+            if (peek("[\\s\u0008]")) { //check if next char is whitespace
                 chars.advance();  //skip whitespace
                 chars.skip();  // reset length back to 0
             } else {
@@ -90,11 +90,9 @@ public final class Lexer {
             chars.advance();
         }
 
-        if (match("\\.")) {
+        if (peek("\\.") && chars.has(1) && String.valueOf(chars.get(1)).matches("[0-9]")) {
             isDecimal = true;
-            if (!peek("[0-9]")) {
-                throw new ParseException("Invalid decimal number format", chars.index);
-            }
+            match("\\.");  // advance past decimal since we know it exists
             while (peek("[0-9]")) {
                 chars.advance();
             }
@@ -150,7 +148,8 @@ public final class Lexer {
         while (peek("[^\"\\n\\r]")) {
             if (peek("\\\\"))
                 lexEscape();
-            chars.advance();
+            else
+                chars.advance();
         }
 
         // check for closing double quote

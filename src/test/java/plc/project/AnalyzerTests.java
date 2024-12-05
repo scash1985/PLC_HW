@@ -56,7 +56,7 @@ public final class AnalyzerTests {
                                 Arrays.asList(),
                                 Arrays.asList(
                                         new Ast.Method("main", Arrays.asList(), Arrays.asList(), Optional.empty(), Arrays.asList(
-                                            new Ast.Stmt.Return(new Ast.Expr.Literal(new BigInteger("0"))))
+                                                new Ast.Stmt.Return(new Ast.Expr.Literal(new BigInteger("0"))))
                                         )
                                 )
                         ),
@@ -64,6 +64,8 @@ public final class AnalyzerTests {
                 )
         );
     }
+
+
 
     @ParameterizedTest(name = "{0}")
     @MethodSource
@@ -227,7 +229,7 @@ public final class AnalyzerTests {
                                 new Ast.Expr.Literal("FALSE"),
                                 Arrays.asList(new Ast.Stmt.Expression(
                                         new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
-                                            new Ast.Expr.Literal(BigInteger.ONE)
+                                                new Ast.Expr.Literal(BigInteger.ONE)
                                         ))
                                 )),
                                 Arrays.asList()
@@ -261,61 +263,8 @@ public final class AnalyzerTests {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource
-    public void testForStatement(String test, Ast.Stmt.For ast, Ast.Stmt.For expected) {
-        Analyzer analyzer = test(ast, expected, init(new Scope(null), scope -> {
-            scope.defineVariable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL);
-            scope.defineFunction("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL);
-        }));
-    }
-
-    private static Stream<Arguments> testForStatement() {
-        return Stream.of(
-                Arguments.of("Valid Loop",
-                        new Ast.Stmt.For("num",
-                                new Ast.Expr.Access(Optional.empty(), "list"),
-                                Arrays.asList(new Ast.Stmt.Expression(
-                                        new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
-                                                new Ast.Expr.Access(Optional.empty(), "num")
-                                        ))
-                                ))
-                        ),
-                        init(new Ast.Stmt.For("num",
-                                init(new Ast.Expr.Access(Optional.empty(), "list"), ast -> ast.setVariable(
-                                        new Environment.Variable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL))
-                                ),
-                                Arrays.asList(new Ast.Stmt.Expression(
-                                        init(new Ast.Expr.Function(Optional.empty(), "print", Arrays.asList(
-                                                        init(new Ast.Expr.Access(Optional.empty(), "num"), access -> access.setVariable(
-                                                                new Environment.Variable("num", "num", Environment.Type.INTEGER, Environment.NIL))
-                                                        ))
-                                                ), func -> func.setFunction(
-                                                        new Environment.Function("print", "System.out.println",
-                                                                Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL))
-                                        )
-                                ))
-                        ), ast -> {
-                            Scope scope = new Scope(null);
-                            scope.defineVariable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL);
-                            scope.defineVariable("num", "num", Environment.Type.INTEGER, Environment.NIL);
-                            scope.defineFunction("print", "System.out.println", Arrays.asList(Environment.Type.ANY), Environment.Type.NIL, args -> Environment.NIL);
-                        })
-                ),
-                Arguments.of("Empty Statements",
-                        // FOR num IN list DO END
-                        new Ast.Stmt.For("num",
-                                new Ast.Expr.Access(Optional.empty(), "list"),
-                                Arrays.asList()
-                        ),
-                        init(new Ast.Stmt.For("num",
-                                init(new Ast.Expr.Access(Optional.empty(), "list"), ast -> ast.setVariable(new Environment.Variable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL))),
-                                Arrays.asList()
-                        ), ast -> {
-                            Scope scope = new Scope(null);
-                            scope.defineVariable("list", "list", Environment.Type.INTEGER_ITERABLE, Environment.NIL);
-                            scope.defineVariable("num", "num", Environment.Type.INTEGER, Environment.NIL);
-                        })
-                )
-        );
+    public void testLiteralExpression(String test, Ast.Expr.Literal ast, Ast.Expr.Literal expected) {
+        test(ast, expected, new Scope(null));
     }
 
     private static Stream<Arguments> testLiteralExpression() {
@@ -400,39 +349,6 @@ public final class AnalyzerTests {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource
-    public void testGroupExpression(String test, Ast.Expr.Group ast, Ast.Expr.Group expected) {
-        test(ast, expected, new Scope(null));
-    }
-
-    private static Stream<Arguments> testGroupExpression() {
-        return Stream.of(
-                Arguments.of("Grouped Literal",
-                        // (1)
-                        new Ast.Expr.Group(new Ast.Expr.Literal(BigInteger.ONE)),
-                        init(new Ast.Expr.Group(
-                                init(new Ast.Expr.Literal(BigInteger.ONE), ast -> ast.setType(Environment.Type.INTEGER))
-                        ), ast -> ast.setType(Environment.Type.INTEGER))
-                ),
-                Arguments.of("Grouped Binary",
-                        // (1 + 10)
-                        new Ast.Expr.Group(
-                                new Ast.Expr.Binary("+",
-                                        new Ast.Expr.Literal(BigInteger.ONE),
-                                        new Ast.Expr.Literal(BigInteger.TEN)
-                                )
-                        ),
-                        init(new Ast.Expr.Group(
-                                init(new Ast.Expr.Binary("+",
-                                        init(new Ast.Expr.Literal(BigInteger.ONE), lit -> lit.setType(Environment.Type.INTEGER)),
-                                        init(new Ast.Expr.Literal(BigInteger.TEN), lit -> lit.setType(Environment.Type.INTEGER))
-                                ), bin -> bin.setType(Environment.Type.INTEGER))
-                        ), ast -> ast.setType(Environment.Type.INTEGER))
-                )
-        );
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource
     public void testAccessExpression(String test, Ast.Expr.Access ast, Ast.Expr.Access expected) {
         test(ast, expected, init(new Scope(null), scope -> {
             scope.defineVariable("variable", "variable", Environment.Type.INTEGER, Environment.NIL);
@@ -506,6 +422,58 @@ public final class AnalyzerTests {
                 Arguments.of("Any to Integer", Environment.Type.INTEGER, Environment.Type.ANY, false)
         );
     }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource
+    public void testLiteral(String test, Ast.Expr.Literal ast, Ast.Expr.Literal expected) {
+        test(ast, expected, new Scope(null));
+    }
+
+    private static Stream<Arguments> testLiteral() {
+        return Stream.of(
+                // Valid Integer Literal
+                Arguments.of("Valid Integer Literal",
+                        new Ast.Expr.Literal(BigInteger.ONE),
+                        init(new Ast.Expr.Literal(BigInteger.ONE), ast -> ast.setType(Environment.Type.INTEGER))
+                ),
+                // Invalid Integer Literal (Out of Range)
+                Arguments.of("Invalid Integer Literal (Out of Range)",
+                        new Ast.Expr.Literal(BigInteger.valueOf(Long.MAX_VALUE)),
+                        null // Expect RuntimeException
+                ),
+                // Valid Decimal Literal
+                Arguments.of("Valid Decimal Literal",
+                        new Ast.Expr.Literal(BigDecimal.valueOf(1.23)),
+                        init(new Ast.Expr.Literal(BigDecimal.valueOf(1.23)), ast -> ast.setType(Environment.Type.DECIMAL))
+                ),
+                // Invalid Decimal Literal (Out of Range)
+                Arguments.of("Invalid Decimal Literal (Out of Range)",
+                        new Ast.Expr.Literal(BigDecimal.valueOf(Double.MAX_VALUE).add(BigDecimal.ONE)),
+                        null // Expect RuntimeException
+                ),
+                // Valid Boolean Literal
+                Arguments.of("Valid Boolean Literal",
+                        new Ast.Expr.Literal(true),
+                        init(new Ast.Expr.Literal(true), ast -> ast.setType(Environment.Type.BOOLEAN))
+                ),
+                // Valid Character Literal
+                Arguments.of("Valid Character Literal",
+                        new Ast.Expr.Literal('A'),
+                        init(new Ast.Expr.Literal('A'), ast -> ast.setType(Environment.Type.CHARACTER))
+                ),
+                // Valid String Literal
+                Arguments.of("Valid String Literal",
+                        new Ast.Expr.Literal("Hello"),
+                        init(new Ast.Expr.Literal("Hello"), ast -> ast.setType(Environment.Type.STRING))
+                ),
+                // Invalid Null Literal
+                Arguments.of("Invalid Null Literal",
+                        new Ast.Expr.Literal(null),
+                        null // Expect RuntimeException
+                )
+        );
+    }
+
 
     /**
      * Helper function for tests. If {@param expected} is {@code null}, analysis

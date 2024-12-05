@@ -203,7 +203,7 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
         switch (ast.getOperator()) {
             case "+":
                 if (left.getValue() instanceof String || right.getValue() instanceof String) {
-                    return Environment.create(requireType(String.class, left) + requireType(String.class, right));
+                    return Environment.create(left.getValue().toString() + right.getValue().toString());
                 } else if (left.getValue() instanceof BigInteger && right.getValue() instanceof BigInteger) {
                     return Environment.create(requireType(BigInteger.class, left).add(requireType(BigInteger.class, right)));
                 } else if (left.getValue() instanceof BigDecimal && right.getValue() instanceof BigDecimal) {
@@ -254,24 +254,26 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
             case "<":
             case ">=":
             case "<=":
-                if (left.getValue() instanceof String || right.getValue() instanceof String) {
-                    throw new UnsupportedOperationException("Unsupported operator: " + ast.getOperator() + " for strings");
-                } else if (left.getValue().getClass() != right.getValue().getClass()) {
-                    // Throw an exception for mixed types
-                    throw new UnsupportedOperationException("Unsupported operator: " + ast.getOperator() + " for different types.");
-                } else if (left.getValue() instanceof BigInteger) {
-                    // Handle BigInteger comparisons
-                    int comparison = requireType(BigInteger.class, left).compareTo(requireType(BigInteger.class, right));
-                    return handleComparison(ast.getOperator(), comparison);
-                } else if (left.getValue() instanceof BigDecimal) {
-                    // Handle BigDecimal comparisons
-                    int comparison = requireType(BigDecimal.class, left).compareTo(requireType(BigDecimal.class, right));
-                    return handleComparison(ast.getOperator(), comparison);
+                if (left.getValue() instanceof Comparable) {
+                    if (left.getValue().getClass() != right.getValue().getClass()) {
+                        // Throw an exception for mixed types
+                        throw new UnsupportedOperationException("Unsupported operator: " + ast.getOperator() + " for different types.");
+                    } else if (left.getValue() instanceof BigInteger) {
+                        // Handle BigInteger comparisons
+                        int comparison = requireType(BigInteger.class, left).compareTo(requireType(BigInteger.class, right));
+                        return handleComparison(ast.getOperator(), comparison);
+                    } else if (left.getValue() instanceof BigDecimal) {
+                        // Handle BigDecimal comparisons
+                        int comparison = requireType(BigDecimal.class, left).compareTo(requireType(BigDecimal.class, right));
+                        return handleComparison(ast.getOperator(), comparison);
+                    }
                 } else {
                     throw new UnsupportedOperationException("Unsupported operator: " + ast.getOperator() + " for non-comparable types.");
                 }
             case "==":
                 return Environment.create(left.getValue().equals(right.getValue()));
+            case "!=":
+                return Environment.create(!left.getValue().equals(right.getValue()));
             case "OR":
             case "||":
                 if (requireType(Boolean.class, left)) {
@@ -342,7 +344,7 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
     /**
      * Helper function to ensure an object is of the appropriate type.
      */
-    private static <T> T requireType(Class<T> type, Environment.PlcObject object) {
+    static <T> T requireType(Class<T> type, Environment.PlcObject object) {
         if (type.isInstance(object.getValue())) {
             return type.cast(object.getValue());
         } else {

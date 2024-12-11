@@ -79,16 +79,14 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Field ast) {
-        // Use the appropriate type name, converting "Decimal" to "double"
-        String typeName = ast.getTypeName();
-        if ("Integer".equals(typeName)) {
-            typeName = "int";
-        } else if ("Decimal".equals(typeName)) {
-            typeName = "double";
-        }
+        // Use the JVM-specific type name
+        String typeName = ast.getVariable().getType().getJvmName();
+
+        // Use the JVM-specific variable name
+        String variableName = ast.getVariable().getJvmName();
 
         // Generate the field declaration
-        print(typeName, " ", ast.getName());
+        print(typeName, " ", variableName);
 
         // Include initialization value if present
         if (ast.getValue().isPresent()) {
@@ -182,7 +180,7 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.Declaration ast) {
-        // Determine the type name and map to Java primitive types
+        // Determine the type name and map to Java primitive or reference types
         String typeName = ast.getTypeName().orElse("");
         if (typeName.isEmpty() && ast.getValue().isPresent()) {
             // Infer type from the value expression
@@ -193,6 +191,8 @@ public final class Generator implements Ast.Visitor<Void> {
                     typeName = "double";
                 } else if (literal instanceof BigInteger || literal instanceof Integer) {
                     typeName = "int";
+                } else if (literal instanceof String) {
+                    typeName = "String";
                 }
             } else {
                 typeName = "var"; // Fallback to 'var' if no type can be inferred
@@ -201,9 +201,11 @@ public final class Generator implements Ast.Visitor<Void> {
             typeName = "int"; // Convert "Integer" to "int"
         } else if ("Decimal".equals(typeName)) {
             typeName = "double"; // Convert "Decimal" to "double"
+        } else if ("String".equals(typeName)) {
+            typeName = "String"; // Ensure proper mapping for "String"
         }
 
-        // Print the declaration
+        // Print the declaration with the inferred or specified type
         print(typeName, " ", ast.getName());
         if (ast.getValue().isPresent()) {
             print(" = ");
@@ -212,6 +214,7 @@ public final class Generator implements Ast.Visitor<Void> {
         print(";");
         return null;
     }
+    //to commit
 
     @Override
     public Void visit(Ast.Stmt.Assignment ast) {
@@ -363,9 +366,9 @@ public final class Generator implements Ast.Visitor<Void> {
             visit(ast.getReceiver().get());
             print(".");
         }
-        // Check if variable exists and use its JVM name
+        // Use the variable's name instead of getJvmName()
         Environment.Variable variable = ast.getVariable();
-        print(variable.getJvmName());
+        print(variable.getName());
         return null;
     }
 
